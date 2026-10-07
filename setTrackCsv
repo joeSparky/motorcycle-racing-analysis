@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Source this file: source setTrackCsv path/to/track.csv
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: source setTrackCsv track.csv"
+    return 1 2>/dev/null || exit 1
+fi
+
+if [[ ! -f "$1" ]]; then
+    echo "Track CSV file not found: $1"
+    return 1 2>/dev/null || exit 1
+fi
+
+if [[ "${1,,}" != *.csv ]]; then
+    echo "Track CSV must be a .csv file"
+    return 1 2>/dev/null || exit 1
+fi
+
+export track_csv="$(realpath "$1")"
+echo "track_csv=$track_csv"

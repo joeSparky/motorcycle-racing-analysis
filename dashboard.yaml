@@ -1,0 +1,86 @@
+# dashboard.yaml
+#
+# Steve can control the dashboard by editing this file.
+# The order below is the order shown on the screen.
+#
+# type:
+#   number  = numeric readout
+#   bar     = horizontal bar plus numeric readout
+#
+# size:
+#   large   = large numeric readout
+#   normal  = normal numeric readout
+#
+# Optional numeric settings:
+#   units: "mph"
+#   decimals: 1
+#   min: 0
+#   max: 100
+#   conversion: m_to_ft
+#   scale: 1.0
+#   offset: 0.0
+
+# Expressions:
+#   expression: "RPM"
+#   expression: "RPM / Speed"
+#   expression: "RPM / [GPS Speed]"
+#
+# Use [brackets] around CSV column names containing spaces or punctuation.
+# Supported arithmetic: +  -  *  /  %  **  and parentheses.
+#
+title: Steve's Race Dashboard
+window: 650x730
+
+video:
+  width: 640
+  height: 360
+  audio: false
+  flip: false
+
+display:
+  - expression: "[GPS Speed] * 0.621371"
+    label: SPEED
+    type: number
+    units: mph
+    decimals: 0
+    size: large
+
+  - expression: "RPM"
+    label: RPM
+    type: number
+    decimals: 0
+    size: large
+
+  - expression: "Throttle"
+    label: THROTTLE
+    type: bar
+    units: "%"
+    decimals: 0
+    min: 0
+    max: 100
+
+  - expression: "BrakePressure"
+    label: BRAKE
+    type: bar
+    units: bar
+    decimals: 1
+    min: 0
+    max: 20
+
+  - expression: "RPM/Speed"
+    label: Gear
+    type: number
+    decimals: 0
+
+#  - expression: "GPS Slope"
+#    label: SLOPE
+#    type: number
+#    units: degrees
+#    decimals: 1
+
+#  - expression: "GPS Radius"
+#    label: RADIUS
+#   type: number
+#    units: ft
+#    decimals: 0
+#    conversion: m_to_ft

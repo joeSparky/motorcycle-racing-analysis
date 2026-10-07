@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Source this file: source setPoints path/to/points.json
+if [[ $# -ne 1 ]]; then echo "Usage: source setPoints points.json"; return 1 2>/dev/null || exit 1; fi
+if [[ ! -f "$1" ]]; then echo "Points file not found: $1"; return 1 2>/dev/null || exit 1; fi
+if [[ "${1,,}" != *.json ]]; then echo "Points must be a .json file"; return 1 2>/dev/null || exit 1; fi
+export points="$(realpath "$1")"
+echo "points=$points"

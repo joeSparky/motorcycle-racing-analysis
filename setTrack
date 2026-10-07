@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Source this file: source setTrack path/to/track.json
+if [[ $# -ne 1 ]]; then echo "Usage: source setTrack track.json"; return 1 2>/dev/null || exit 1; fi
+if [[ ! -f "$1" ]]; then echo "Track file not found: $1"; return 1 2>/dev/null || exit 1; fi
+if [[ "${1,,}" != *.json ]]; then echo "Track must be a .json file"; return 1 2>/dev/null || exit 1; fi
+export track="$(realpath "$1")"
+echo "track=$track"

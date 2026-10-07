@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Source this file so $video remains set in your current shell:
+#   source setVideo path/to/video.mp4
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: source setVideo VIDEOFILE" >&2
+    return 2 2>/dev/null || exit 2
+fi
+
+if [[ ! -f "$1" ]]; then
+    echo "Video file not found: $1" >&2
+    return 1 2>/dev/null || exit 1
+fi
+
+video="$(realpath "$1")"
+export video
+echo "video=$video"

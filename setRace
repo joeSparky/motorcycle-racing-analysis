@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Source this file: source setRace path/to/race.csv
+if [[ $# -ne 1 ]]; then echo "Usage: source setRace race.csv"; return 1 2>/dev/null || exit 1; fi
+if [[ ! -f "$1" ]]; then echo "Race file not found: $1"; return 1 2>/dev/null || exit 1; fi
+if [[ "${1,,}" != *.csv ]]; then echo "Race data must be a .csv file"; return 1 2>/dev/null || exit 1; fi
+export race="$(realpath "$1")"
+echo "race=$race"

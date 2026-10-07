@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+if [[ $# -ne 1 || ! "$1" =~ ^[1-9][0-9]*$ ]]; then echo "Usage: source setDivisions POSITIVE_INTEGER"; return 1 2>/dev/null || exit 1; fi
+export divisions="$1"
+echo "divisions=$divisions"
