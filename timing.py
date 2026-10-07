@@ -115,3 +115,4 @@ if __name__=='__main__':
     try:main()
     except (ValueError,OSError,KeyError,TypeError,csv.Error) as exc:
         print(f'timing.py: error: {exc}',file=sys.stderr);sys.exit(2)
+

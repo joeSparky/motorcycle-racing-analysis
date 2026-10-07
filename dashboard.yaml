@@ -34,7 +34,7 @@ window: 650x730
 video:
   width: 640
   height: 360
-  audio: false
+  audio: true
   flip: false
 
 display:
@@ -84,3 +84,4 @@ display:
 #    units: ft
 #    decimals: 0
 #    conversion: m_to_ft
+

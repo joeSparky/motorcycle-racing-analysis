@@ -25,6 +25,7 @@ import socket
 import subprocess
 import sys
 import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
 from bisect import bisect_left
 from pathlib import Path
 
@@ -161,6 +162,25 @@ class ExpressionEvaluator:
         return visit(tree)
 
 
+def read_timed_laps(filename):
+    """Use complete beacon-to-beacon intervals; omit the session's lead-in."""
+    with Path(filename).open(encoding="utf-8-sig", newline="") as f:
+        for row in csv.reader(f):
+            if row and row[0] == "Beacon Markers":
+                markers = [float(v) for v in row[1:] if v.strip()]
+                if not all(math.isfinite(v) for v in markers) or any(b <= a for a, b in zip(markers, markers[1:])):
+                    raise ValueError("Beacon markers must increase in time.")
+                return [{"number": i, "start": a, "end": b, "duration": b-a}
+                        for i, (a, b) in enumerate(zip(markers, markers[1:]), 1)]
+            if row[:2] == ["Time", "GPS Speed"]:
+                break
+    return []
+
+
+def lap_time(seconds):
+    return f"{int(seconds // 60)}:{seconds % 60:06.3f}"
+
+
 class RaceData:
     def __init__(self, filename):
         self.filename = Path(filename)
@@ -212,88 +232,16 @@ class RaceData:
         return self.times[before], self.rows[before]
 
 
-class MpvConnection:
-    def __init__(self, socket_path):
-        self.socket_path = socket_path
-        self.sock = None
-        self.buffer = b""
-        self.request_id = 0
-
-    def close(self):
-        if self.sock is not None:
-            try:
-                self.sock.close()
-            except OSError:
-                pass
-        self.sock = None
-
-    def connect(self):
-        self.close()
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.settimeout(0.05)
-        s.connect(self.socket_path)
-        self.sock = s
-        self.buffer = b""
-
-    def get_property(self, name):
-        if self.sock is None:
-            self.connect()
-
-        self.request_id += 1
-        rid = self.request_id
-        request = {"command": ["get_property", name], "request_id": rid}
-        self.sock.sendall((json.dumps(request) + "\n").encode())
-
-        while True:
-            while b"\n" in self.buffer:
-                line, self.buffer = self.buffer.split(b"\n", 1)
-                if not line:
-                    continue
-                response = json.loads(line.decode())
-                if response.get("request_id") != rid:
-                    continue
-                if response.get("error") != "success":
-                    return None
-                return response.get("data")
-
-            chunk = self.sock.recv(4096)
-            if not chunk:
-                raise ConnectionError("MPV closed the IPC connection.")
-            self.buffer += chunk
-
-
-    def command(self, *args):
-        """Send an MPV command and wait for its matching reply."""
-        if self.sock is None:
-            self.connect()
-
-        self.request_id += 1
-        rid = self.request_id
-        request = {"command": list(args), "request_id": rid}
-        self.sock.sendall((json.dumps(request) + "\n").encode())
-
-        while True:
-            while b"\n" in self.buffer:
-                line, self.buffer = self.buffer.split(b"\n", 1)
-                if not line:
-                    continue
-                response = json.loads(line.decode())
-                if response.get("request_id") != rid:
-                    continue
-                return response.get("error") == "success"
-
-            chunk = self.sock.recv(4096)
-            if not chunk:
-                raise ConnectionError("MPV closed the IPC connection.")
-            self.buffer += chunk
+from mpv_ipc import MpvConnection, DEFAULT_PIPE
 
 
 class Dashboard:
-    def __init__(self, root, race_data, calibration, socket_path, video_path, config):
+    def __init__(self, root, race_data, calibration, socket_path, video_path, config, track_path=None):
         self.root = root
         self.race_data = race_data
         self.slope = float(calibration["slope"])
         self.offset = float(calibration["offset"])
+        self.sync_adjustment = 0.0
         self.mpv = MpvConnection(socket_path)
         self.socket_path = socket_path
         self.video_path = video_path
@@ -301,6 +249,20 @@ class Dashboard:
         self.config = config
         self.expression_evaluator = ExpressionEvaluator(race_data.fields)
         self.widgets = []
+        self.active_lap = None
+        self.pending_lap = None
+        self.lap_dialog = None
+        self.track_path = Path(track_path) if track_path else None
+        self.segment_process = None
+        self.segment_dialog = None
+        self.segment_output = None
+        self.repeat_lap = tk.BooleanVar(value=False)
+        try:
+            self.laps = read_timed_laps(race_data.filename)
+            self.lap_error = ""
+        except (OSError, ValueError) as exc:
+            self.laps = []
+            self.lap_error = str(exc)
 
         root.title(config.get("title", "Race Dashboard"))
         root.geometry(config.get("window", "650x650"))
@@ -367,10 +329,221 @@ class Dashboard:
         tk.Button(frames, text="FRAME >", width=10,
                   command=lambda: self.send_mpv("frame-step")).pack(side="left", padx=2)
 
+        sync = tk.Frame(root)
+        sync.pack(pady=2)
+        tk.Label(sync, text="Video sync:").pack(side="left", padx=4)
+        tk.Button(sync, text="-0.1 s", command=lambda: self.adjust_sync(-0.1)).pack(side="left", padx=2)
+        tk.Button(sync, text="+0.1 s", command=lambda: self.adjust_sync(0.1)).pack(side="left", padx=2)
+        self.sync_label = tk.Label(sync, text="+0.0 s")
+        self.sync_label.pack(side="left", padx=6)
+        tk.Button(sync, text="Reset", command=self.reset_sync).pack(side="left", padx=2)
+        tk.Button(sync, text="Done", width=10, command=self.close).pack(side="left", padx=12)
+        tk.Button(frames, text="Best lap / Laps...", width=18,
+                  command=self.show_laps).pack(side="left", padx=8)
+        tk.Button(frames, text="Best segments...", width=16,
+                  command=self.show_segments).pack(side="left", padx=2)
         self.status = tk.Label(root, text="MPV is not running.")
         self.status.pack(pady=(7, 12))
 
+        root.protocol("WM_DELETE_WINDOW", self.close)
         self.update_dashboard()
+
+    def show_segments(self):
+        if self.segment_process is not None:
+            self.status.config(text="Calculating segment times...")
+            return
+        if self.segment_dialog is not None and self.segment_dialog.winfo_exists():
+            self.segment_dialog.lift()
+            return
+        if self.track_path is None:
+            filename = filedialog.askopenfilename(parent=self.root, title="Choose track project with saved segments",
+                filetypes=[("Track project JSON", "*.json")])
+            if not filename:
+                return
+            self.track_path = Path(filename)
+        try:
+            # Temporary stdout storage prevents a full pipe from blocking the worker.
+            import tempfile
+            self.segment_output = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
+            self.segment_process = subprocess.Popen([sys.executable,
+                str(Path(__file__).resolve().parent / "segment_analysis.py"),
+                "--race", str(self.race_data.filename), "--track", str(self.track_path)],
+                stdout=self.segment_output, stderr=self.segment_output,
+                env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+            self.status.config(text="Calculating segment times...")
+            self.root.after(150, self.poll_segments)
+        except OSError as exc:
+            if self.segment_output:
+                self.segment_output.close()
+            self.segment_process = None
+            messagebox.showerror("Segment analysis", str(exc))
+
+    def poll_segments(self):
+        code = self.segment_process.poll()
+        if code is None:
+            self.root.after(150, self.poll_segments)
+            return
+        self.segment_output.seek(0)
+        output = self.segment_output.read()
+        self.segment_output.close()
+        self.segment_output = None
+        self.segment_process = None
+        try:
+            if code:
+                raise ValueError(output[-2000:] or "Segment calculation failed.")
+            result = json.loads(output)
+            self.build_segment_dialog(result)
+        except (ValueError, KeyError) as exc:
+            messagebox.showerror("Segment analysis", str(exc))
+
+    def build_segment_dialog(self, result):
+        dialog = self.segment_dialog = tk.Toplevel(self.root)
+        dialog.title("Best segment timing")
+        dialog.geometry("860x630")
+        total = result['theoretical_time']
+        best_lap = result.get('best_actual_lap')
+        actual = float(best_lap['IntervalTime']) if best_lap else None
+        best_text = f"Best complete lap: {lap_time(actual)} — observed lap {best_lap['Lap']}" if best_lap else "Best complete lap: unavailable"
+        tk.Label(dialog, text=best_text, font=("TkDefaultFont", 15, "bold")).pack(pady=(8, 0))
+        heading = "Sum of best segments: " + (lap_time(total) if total is not None else "unavailable (missing complete pass)")
+        tk.Label(dialog, text=heading, font=("TkDefaultFont", 15, "bold")).pack(pady=8)
+        if actual is not None and total is not None:
+            tk.Label(dialog, text=f"Difference: {actual - total:.3f} s (best complete lap minus best segments)").pack()
+        tk.Label(dialog, text="Complete forward passes only. Times interpolate boundary crossings; interrupted visits are excluded.").pack()
+        summary = ttk.Treeview(dialog, columns=("segment", "range", "time", "lap", "count"), show="headings", height=7, selectmode="browse")
+        for key, title, width in [("segment", "Segment", 90), ("range", "Positions", 180), ("time", "Best time", 130), ("lap", "Observed lap", 120), ("count", "Complete passes", 130)]:
+            summary.heading(key, text=title);summary.column(key, width=width, anchor="center")
+        for segment in result['segments']:
+            best = segment['best']
+            count = sum(p['Complete'] == 'true' for p in segment['passes'])
+            summary.insert("", "end", iid=str(segment['end']), values=(segment['end'], f"{segment['start']}–{segment['end']}",
+                f"{float(best['IntervalTime']):.3f} s" if best else "—", best['Lap'] if best else "—", count))
+        summary.pack(fill="both", expand=True, padx=12, pady=8)
+        tk.Label(dialog, text="Passes through selected segment — fastest first").pack()
+        detail = ttk.Treeview(dialog, columns=("pass", "lap", "time", "gap", "entry", "status"), show="headings", height=8, selectmode="browse")
+        for key, title in [("pass", "Pass"), ("lap", "Observed lap"), ("time", "Time (s)"), ("gap", "Behind best (s)"), ("entry", "CSV entry (s)"), ("status", "Status")]:
+            detail.heading(key, text=title);detail.column(key, width=120, anchor="center")
+        detail.pack(fill="both", expand=True, padx=12, pady=8)
+        current = {'segment': None, 'passes': {}}
+        def fill(event=None):
+            selection = summary.selection()
+            if not selection:
+                return
+            segment = next(s for s in result['segments'] if str(s['end']) == selection[0])
+            current['segment'] = segment
+            current['passes'] = {}
+            detail.delete(*detail.get_children())
+            passes = sorted(segment['passes'], key=lambda p: (p['Complete'] != 'true', float(p['IntervalTime']) if p['IntervalTime'] else float('inf')))
+            for p in passes:
+                iid = str(p['Pass']);current['passes'][iid] = p
+                detail.insert("", "end", iid=iid, values=(p['Pass'], p['Lap'],
+                    f"{float(p['IntervalTime']):.3f}" if p['IntervalTime'] else "—",
+                    f"{float(p['BehindBest']):.3f}" if p['BehindBest'] else "—", p['EntryTime'] or "—", p['Status']))
+            if passes:
+                detail.selection_set(str(passes[0]['Pass']))
+        def play(best=False):
+            segment = current['segment']
+            if segment is None:
+                return
+            selected = detail.selection()
+            p = segment['best'] if best else current['passes'].get(selected[0]) if selected else None
+            if not p or p['Complete'] != 'true':
+                messagebox.showinfo("Segment playback", "Select a complete pass to play.", parent=dialog)
+                return
+            self.play_lap({'number': p['Lap'], 'start': float(p['EntryTime']), 'end': float(p['ExitTime']),
+                'duration': float(p['IntervalTime']), 'label': f"Segment {segment['end']} — observed lap {p['Lap']}"})
+        buttons = tk.Frame(dialog);buttons.pack(pady=6)
+        tk.Button(buttons, text="Play best segment", command=lambda: play(True)).pack(side="left", padx=4)
+        tk.Button(buttons, text="Play selected pass", command=play).pack(side="left", padx=4)
+        tk.Checkbutton(buttons, text="Repeat", variable=self.repeat_lap).pack(side="left", padx=4)
+        tk.Button(buttons, text="Done", command=dialog.destroy).pack(side="left", padx=4)
+        tk.Label(dialog, text="Observed lap counts track-position-zero crossings; it may differ from the beacon lap list.").pack(pady=(0,6))
+        summary.bind("<<TreeviewSelect>>", fill)
+        detail.bind("<Double-1>", lambda event: play())
+        summary.selection_set(str(result['segments'][0]['end']))
+        fill()
+
+    def show_laps(self):
+        if not self.laps:
+            messagebox.showinfo("Lap times", self.lap_error or "No complete beacon-to-beacon laps were found in this CSV.")
+            return
+        if self.lap_dialog is not None and self.lap_dialog.winfo_exists():
+            self.lap_dialog.lift()
+            return
+        dialog = self.lap_dialog = tk.Toplevel(self.root)
+        dialog.title("Lap analysis")
+        dialog.geometry("610x450")
+        best = min(self.laps, key=lambda lap: lap["duration"])
+        tk.Label(dialog, text=f"Best timed lap: {best['number']} — {lap_time(best['duration'])}",
+                 font=("TkDefaultFont", 15, "bold")).pack(pady=10)
+        tk.Label(dialog, text="Complete laps between beacon crossings; the initial lead-in is excluded.").pack()
+        table = ttk.Treeview(dialog, columns=("lap", "time", "behind", "start"), show="headings", selectmode="browse")
+        for key, title, width in [("lap", "Timed lap", 90), ("time", "Time", 120), ("behind", "Behind best", 120), ("start", "CSV start", 120)]:
+            table.heading(key, text=title)
+            table.column(key, width=width, anchor="center")
+        for lap in self.laps:
+            table.insert("", "end", iid=str(lap["number"]), values=(lap["number"], lap_time(lap["duration"]),
+                f"+{lap['duration']-best['duration']:.3f} s", f"{lap['start']:.3f} s"))
+        table.pack(fill="both", expand=True, padx=12, pady=8)
+        table.selection_set(str(best["number"]))
+        table.see(str(best["number"]))
+        def selected():
+            choice = table.selection()
+            return next((lap for lap in self.laps if choice and str(lap["number"]) == choice[0]), best)
+        buttons = tk.Frame(dialog)
+        buttons.pack(pady=8)
+        tk.Button(buttons, text="Play best lap", command=lambda: self.play_lap(best)).pack(side="left", padx=4)
+        tk.Button(buttons, text="Play selected lap", command=lambda: self.play_lap(selected())).pack(side="left", padx=4)
+        tk.Checkbutton(buttons, text="Repeat lap", variable=self.repeat_lap).pack(side="left", padx=4)
+        tk.Button(buttons, text="Done", command=dialog.destroy).pack(side="left", padx=4)
+        table.bind("<Double-1>", lambda event: self.play_lap(selected()))
+
+    def play_lap(self, lap):
+        self.active_lap = None
+        self.pending_lap = lap
+        if self.mpv_process is None or self.mpv_process.poll() is not None:
+            self.start_video()
+            if self.mpv_process is None or self.mpv_process.poll() is not None:
+                self.pending_lap = None
+
+    def seek_lap_start(self, lap):
+        start = self.slope * lap["start"] + self.offset + self.sync_adjustment
+        if start < 0:
+            messagebox.showwarning("Lap video", "This lap starts before the available video.")
+            return False
+        duration = self.mpv.get_property("duration")
+        end = self.slope * lap["end"] + self.offset + self.sync_adjustment
+        if duration is not None and end > float(duration) + 0.1:
+            messagebox.showwarning("Lap video", "The available video does not cover this complete lap.")
+            return False
+        if not self.mpv.command("seek", start, "absolute+exact"):
+            return False
+        self.mpv.command("set_property", "pause", False)
+        return True
+
+    def adjust_sync(self, amount):
+        # Positive adjustment puts video ahead of dashboard data.
+        self.sync_adjustment = round(self.sync_adjustment + amount, 1)
+        self.sync_label.config(text=f"{self.sync_adjustment:+.1f} s")
+
+    def reset_sync(self):
+        self.sync_adjustment = 0.0
+        self.sync_label.config(text="+0.0 s")
+
+    def close(self):
+        if self.segment_process is not None and self.segment_process.poll() is None:
+            self.segment_process.terminate()
+            try:
+                self.segment_process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                self.segment_process.kill()
+                self.segment_process.wait()
+        if self.segment_output is not None:
+            self.segment_output.close()
+        self.mpv.close()
+        if self.mpv_process is not None and self.mpv_process.poll() is None:
+            self.mpv_process.terminate()
+        self.root.destroy()
 
     def build_display(self):
         for item in self.config.get("display", []):
@@ -505,6 +678,7 @@ class Dashboard:
             self.status.config(text="Waiting for MPV...")
 
     def start_video(self):
+        self.active_lap = None
         if not self.video_path:
             self.status.config(text="Video is not set. Use: source setVideo FILE")
             return
@@ -530,8 +704,10 @@ class Dashboard:
         height = int(video_cfg.get("height", 360))
 
         cmd = [
-            "mpv",
+            os.environ.get("MPV_EXE", "mpv"),
             "--pause",
+            "--keep-open=yes",
+            "--no-config",
             "--no-fullscreen",
             f"--geometry={width}x{height}",
             f"--input-ipc-server={self.socket_path}",
@@ -560,7 +736,15 @@ class Dashboard:
             if video_time is None:
                 raise ConnectionError
 
-            csv_target = (float(video_time) - self.offset) / self.slope
+            if self.pending_lap is not None:
+                lap = self.pending_lap
+                self.pending_lap = None
+                if self.seek_lap_start(lap):
+                    self.active_lap = lap
+                self.root.after(50, self.update_dashboard)
+                return
+
+            csv_target = (float(video_time) - self.offset - self.sync_adjustment) / self.slope
             csv_time, row = self.race_data.nearest(csv_target)
 
             self.video_time_label.config(text=f"Video {format_video_time(video_time)}")
@@ -569,7 +753,15 @@ class Dashboard:
             for widget in self.widgets:
                 self.update_item(widget, row)
 
-            self.status.config(text="Following MPV")
+            lap = self.active_lap
+            if lap is not None and csv_target >= lap["end"]:
+                if self.repeat_lap.get():
+                    self.pending_lap = lap
+                else:
+                    self.mpv.command("set_property", "pause", True)
+                    self.active_lap = None
+            label = lap.get("label") or "Timed lap " + str(lap["number"]) if lap else "Following MPV"
+            self.status.config(text=f"{label} — {lap_time(lap['duration'])}" if lap else label)
         except (OSError, ConnectionError, json.JSONDecodeError):
             self.mpv.close()
             self.status.config(text="Waiting for MPV...")
@@ -582,7 +774,8 @@ def main():
     parser.add_argument("--race", help="Override $race.")
     parser.add_argument("--video", help="Override $video.")
     parser.add_argument("--config", help="Dashboard YAML file.")
-    parser.add_argument("--socket", default="/tmp/mpvsocket")
+    parser.add_argument("--track", help="Prepared track project with saved segments")
+    parser.add_argument("--socket", default=DEFAULT_PIPE)
     args = parser.parse_args()
 
     race_value = args.race or os.environ.get("race")
@@ -624,10 +817,11 @@ def main():
     root = tk.Tk()
     Dashboard(
         root, race_data, calibration, args.socket,
-        video_path, config
+        video_path, config, args.track
     )
     root.mainloop()
 
 
 if __name__ == "__main__":
     main()
+

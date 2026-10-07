@@ -43,7 +43,7 @@ except ImportError:
     )
 
 
-SOCKET_PATH = "/tmp/mpvsocket"
+SOCKET_PATH = r"\\.\pipe\race-analysis-calibration"
 
 
 def load_race(path):
@@ -98,54 +98,7 @@ def load_race(path):
     return rows
 
 
-class Mpv:
-    def __init__(self, socket_path):
-        self.socket_path = socket_path
-        self.sock = None
-        self.buffer = b""
-        self.request_id = 0
-
-    def close(self):
-        if self.sock is not None:
-            try:
-                self.sock.close()
-            except OSError:
-                pass
-        self.sock = None
-
-    def connect(self):
-        self.close()
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.settimeout(0.10)
-        s.connect(self.socket_path)
-        self.sock = s
-        self.buffer = b""
-
-    def get_property(self, name):
-        if self.sock is None:
-            self.connect()
-
-        self.request_id += 1
-        rid = self.request_id
-        request = {"command": ["get_property", name], "request_id": rid}
-        self.sock.sendall((json.dumps(request) + "\n").encode())
-
-        while True:
-            while b"\n" in self.buffer:
-                line, self.buffer = self.buffer.split(b"\n", 1)
-                if not line:
-                    continue
-                response = json.loads(line.decode())
-                if response.get("request_id") != rid:
-                    continue
-                if response.get("error") != "success":
-                    return None
-                return response.get("data")
-
-            chunk = self.sock.recv(4096)
-            if not chunk:
-                raise ConnectionError("MPV closed its IPC connection.")
-            self.buffer += chunk
+from mpv_ipc import MpvConnection as Mpv, DEFAULT_PIPE
 
 
 class CalibrationApp:
@@ -161,7 +114,7 @@ class CalibrationApp:
         self.end_pair = None
 
         root.title("Video Calibration")
-        root.geometry("900x760")
+        root.geometry("900x800")
 
         heading = tk.Label(
             root,
@@ -172,10 +125,10 @@ class CalibrationApp:
 
         tk.Label(
             root,
-            text="Seek MPV to a recognizable turn, then move the GPS dot to the same event.",
+            text="Match engine start/stop using audio and CSV time, or match a recognizable track event.",
         ).pack(pady=(0, 8))
 
-        self.figure = Figure(figsize=(8.4, 5.0), dpi=100)
+        self.figure = Figure(figsize=(8.4, 3.4), dpi=100)
         self.ax = self.figure.add_subplot(111)
 
         lons = [r["lon"] for r in rows]
@@ -208,6 +161,13 @@ class CalibrationApp:
             info, text="MPV: connecting...", font=("TkFixedFont", 12)
         )
         self.video_label.pack()
+
+        self.flip_enabled = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            info, text="Rotate video 180 degrees", variable=self.flip_enabled,
+            command=self.rotate_video,
+        ).pack()
+
 
         controls = tk.Frame(root)
         controls.pack(pady=6)
@@ -244,12 +204,21 @@ class CalibrationApp:
             command=self.go_to_end,
         ).pack(side="left", padx=5)
 
+        time_controls = tk.Frame(root)
+        time_controls.pack(pady=2)
+        tk.Label(time_controls, text="CSV time (seconds):").pack(side="left")
+        self.csv_entry = tk.Entry(time_controls, width=12)
+        self.csv_entry.pack(side="left", padx=4)
+        tk.Button(time_controls, text="Go", command=self.go_to_csv_time).pack(side="left")
+        tk.Button(time_controls, text="Load saved start", command=lambda: self.load_point("start")).pack(side="left", padx=8)
+        tk.Button(time_controls, text="Load saved end", command=lambda: self.load_point("end")).pack(side="left")
+
         calibrate = tk.Frame(root)
         calibrate.pack(pady=8)
 
         self.start_button = tk.Button(
             calibrate,
-            text="CALIBRATE START",
+            text="SAVE START POINT",
             width=20,
             height=2,
             command=self.calibrate_start,
@@ -258,7 +227,7 @@ class CalibrationApp:
 
         self.end_button = tk.Button(
             calibrate,
-            text="CALIBRATE END",
+            text="SAVE END POINT",
             width=20,
             height=2,
             command=self.calibrate_end,
@@ -266,7 +235,9 @@ class CalibrationApp:
         self.end_button.pack(side="left", padx=10)
 
         self.status = tk.Label(root, text="Start point has not been set.")
-        self.status.pack(pady=(0, 10))
+        self.status.pack(pady=(0, 4))
+        tk.Button(root, text="Done", width=12, command=self.close).pack(pady=(0, 8))
+        self.read_saved_points()
 
         # Keyboard GPS-dot movement. MPV keeps its own normal keyboard controls.
         root.bind("<Left>", lambda e: self.move(-1))
@@ -279,6 +250,62 @@ class CalibrationApp:
         root.protocol("WM_DELETE_WINDOW", self.close)
         self.refresh_dot()
         self.poll_mpv()
+
+    def read_saved_points(self):
+        path = self.race_path.with_suffix(".calibration")
+        if not path.is_file():
+            return
+        try:
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+            if Path(data.get("video", "")) != self.video_path:
+                if not messagebox.askyesno("Different video", "The saved calibration uses a different video. Load its points anyway?"):
+                    return
+            for key in ("pointA", "pointB"):
+                pair = data[key]
+                if not all(math.isfinite(float(pair[k])) for k in ("csvTime", "videoTime")):
+                    raise ValueError("Invalid saved times")
+            self.start_pair = data["pointA"]
+            self.end_pair = data["pointB"]
+            self.status.config(text="Saved start and end loaded. Load either point, adjust it, then save that point.")
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            messagebox.showwarning("Saved calibration", f"Could not load saved points: {exc}")
+
+    def go_to_csv_time(self):
+        try:
+            target = float(self.csv_entry.get())
+            if not math.isfinite(target):
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("CSV time", "Enter a time in seconds.")
+            return
+        self.index = min(range(len(self.rows)), key=lambda i: abs(self.rows[i]["time"] - target))
+        self.refresh_dot()
+
+    def load_point(self, which):
+        pair = self.start_pair if which == "start" else self.end_pair
+        if pair is None:
+            messagebox.showinfo("No saved point", f"No {which} point has been set.")
+            return
+        try:
+            self.mpv.command("set_property", "pause", True)
+            self.mpv.command("seek", pair["videoTime"], "absolute+exact")
+        except (OSError, ConnectionError) as exc:
+            messagebox.showerror("Video", f"Could not seek to the saved point: {exc}")
+            return
+        self.index = min(range(len(self.rows)), key=lambda i: abs(self.rows[i]["time"] - pair["csvTime"]))
+        self.csv_entry.delete(0, tk.END)
+        self.csv_entry.insert(0, f"{pair['csvTime']:.3f}")
+        self.refresh_dot()
+        self.status.config(text=f"Loaded {which}: CSV {pair['csvTime']:.3f} / Video {pair['videoTime']:.3f}. Adjust, then save this point.")
+
+    def rotate_video(self):
+        try:
+            filters = "hflip,vflip" if self.flip_enabled.get() else ""
+            if not self.mpv.command("set_property", "vf", filters):
+                raise ConnectionError("mpv could not rotate the video.")
+        except (OSError, ConnectionError, json.JSONDecodeError) as e:
+            self.mpv.close()
+            messagebox.showerror("Video rotation", str(e))
 
     def current(self):
         return self.rows[self.index]
@@ -347,6 +374,9 @@ class CalibrationApp:
         if pair is None:
             return
         self.start_pair = pair
+        if self.end_pair is not None:
+            self.save_calibration()
+            return
         self.status.config(
             text=(
                 f"START set: CSV {pair['csvTime']:.3f} s  "
@@ -380,9 +410,15 @@ class CalibrationApp:
         a = self.start_pair
         b = self.end_pair
 
+        if b["csvTime"] <= a["csvTime"] or b["videoTime"] <= a["videoTime"]:
+            messagebox.showerror("Invalid calibration", "End must be later than start in both CSV and video. The saved file was not changed.")
+            return
         slope = (b["videoTime"] - a["videoTime"]) / (
             b["csvTime"] - a["csvTime"]
         )
+        if not math.isfinite(slope) or slope <= 0:
+            messagebox.showerror("Invalid calibration", "Choose a later point in both the video and GPS data for CALIBRATE END.")
+            return
         offset = a["videoTime"] - slope * a["csvTime"]
 
         output = self.race_path.with_suffix(".calibration")
@@ -426,9 +462,10 @@ def launch_mpv(video_path, socket_path):
         pass
 
     cmd = [
-        "mpv",
+        os.environ.get("MPV_EXE", "mpv"),
         "--pause",
-        "--no-audio",
+        "--keep-open=yes",
+        "--no-config",
         "--no-fullscreen",
         "--geometry=640x360",
         f"--input-ipc-server={socket_path}",
@@ -441,8 +478,13 @@ def launch_mpv(video_path, socket_path):
         raise SystemExit("mpv was not found on PATH.")
 
     for _ in range(50):
-        if Path(socket_path).exists():
+        probe = Mpv(socket_path)
+        try:
+            probe.connect()
+            probe.close()
             return process
+        except OSError:
+            probe.close()
         if process.poll() is not None:
             raise SystemExit("mpv exited before its IPC socket was created.")
         time.sleep(0.1)
@@ -494,3 +536,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

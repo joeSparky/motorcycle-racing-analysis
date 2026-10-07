@@ -91,3 +91,4 @@ if __name__ == '__main__':
     except (OSError, ValueError, csv.Error) as exc:
         print(f'aimcsv: error: {exc}', file=sys.stderr)
         sys.exit(2)
+

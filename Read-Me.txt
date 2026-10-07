@@ -1,0 +1,3 @@
+Close the racing tools. Copy dashboard.py and segment_analysis.py into your existing setup folder, replacing the previous files. No Setup rerun needed.
+
+Best segment timing now shows the fastest complete GPS lap, the sum of best segment times, and their difference. Complete lap times use the same position-zero crossing, continuity, off-track, and interpolation rules as the segments. The beacon-based Best lap / Laps list can differ slightly.
