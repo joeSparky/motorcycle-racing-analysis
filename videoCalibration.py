@@ -86,11 +86,19 @@ def load_race(path):
         if lat == 0.0 and lon == 0.0:
             continue
 
+        try:
+            rpm = float(row.get("RPM", ""))
+            if not math.isfinite(rpm):
+                rpm = None
+        except (TypeError, ValueError):
+            rpm = None
+
         rows.append({
             "record": record_number,
             "time": t,
             "lat": lat,
             "lon": lon,
+            "rpm": rpm,
         })
 
     if not rows:
@@ -156,6 +164,8 @@ class CalibrationApp:
             info, text="", font=("TkFixedFont", 12, "bold")
         )
         self.csv_label.pack()
+        self.rpm_label = tk.Label(info, text="RPM —", font=("TkDefaultFont", 18, "bold"))
+        self.rpm_label.pack()
 
         self.video_label = tk.Label(
             info, text="MPV: connecting...", font=("TkFixedFont", 12)
@@ -331,6 +341,8 @@ class CalibrationApp:
                 f"CSV Time {row['time']:.3f} s    Record {row['record']:,}"
             )
         )
+        rpm = row.get("rpm")
+        self.rpm_label.config(text="RPM —" if rpm is None else f"RPM {rpm:,.0f}")
         self.canvas.draw_idle()
 
     def video_time(self):
