@@ -50,6 +50,9 @@ class Launcher:
             b = ttk.Button(buttons, text=label, command=lambda s=script:self.launch(s))
             b.pack(side='left', padx=(0,12))
             self.buttons.append(b)
+        statistics_button = ttk.Button(buttons, text='Statistics', command=self.open_statistics)
+        statistics_button.pack(side='left', padx=(0,12))
+        self.buttons.append(statistics_button)
         editor_button = ttk.Button(buttons, text='Edit Segments', command=self.edit_segments)
         editor_button.pack(side='left', padx=(0,12))
         self.buttons.append(editor_button)
@@ -121,6 +124,27 @@ class Launcher:
                 self.log = None
             messagebox.showerror('Cannot open segment editor', str(exc), parent=self.root)
 
+    def open_statistics(self):
+        if self.child and self.child.poll() is None:
+            return
+        try:
+            race = Path(self.race.get()).resolve()
+            if not race.is_file():
+                raise ValueError('Choose an existing original AIM race CSV first.')
+            command = [sys.executable, str(BASE/'statisticsScreen.py'), '--race', str(race)]
+            if self.track.get().strip():
+                command.extend(['--track', str(Path(self.track.get()).resolve())])
+            self.save()
+            env = os.environ.copy(); env['PYTHONIOENCODING'] = 'utf-8'
+            self.log = open(BASE/'analysis-log.txt', 'w', encoding='utf-8')
+            self.child = subprocess.Popen(command, cwd=BASE, env=env, stdout=self.log, stderr=self.log)
+            for button in self.buttons: button.state(['disabled'])
+            self.status.set('Close Statistics to return here.')
+            self.root.after(300, self.poll)
+        except Exception as exc:
+            if self.log: self.log.close(); self.log = None
+            messagebox.showerror('Cannot open statistics', str(exc), parent=self.root)
+
     def launch(self, script):
         try:
             race = Path(self.race.get()).resolve()
@@ -166,7 +190,7 @@ class Launcher:
             return
         self.log.close(); self.log=None; self.child=None
         for b in self.buttons: b.state(['!disabled'])
-        self.status.set('Ready. Choose calibration or dashboard.')
+        self.status.set('Ready. Choose calibration, dashboard, or statistics.')
         if code:
             detail=(BASE/'analysis-log.txt').read_text(encoding='utf-8',errors='replace')
             messagebox.showerror('Analysis stopped', detail[-2500:] or 'See analysis-log.txt.',parent=self.root)

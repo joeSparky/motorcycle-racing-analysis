@@ -21,3 +21,12 @@ __pycache__/
 *~
 .DS_Store
 Thumbs.db
+
+# Local runtime and user preferences
+tools/
+analysis-log.txt
+setup-log.txt
+setup-settings.json
+last-race.json
+expressions.json
+*.statistics.json

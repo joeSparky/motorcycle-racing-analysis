@@ -55,111 +55,7 @@ def format_video_time(seconds):
     return f"{minutes:02d}:{secs:06.3f}"
 
 
-class ExpressionEvaluator:
-    """Safely evaluate arithmetic expressions using values from one CSV row."""
-
-    ALLOWED_BINOPS = {
-        ast.Add: lambda a, b: a + b,
-        ast.Sub: lambda a, b: a - b,
-        ast.Mult: lambda a, b: a * b,
-        ast.Div: lambda a, b: a / b,
-        ast.Mod: lambda a, b: a % b,
-        ast.Pow: lambda a, b: a ** b,
-    }
-    ALLOWED_UNARY = {
-        ast.UAdd: lambda a: +a,
-        ast.USub: lambda a: -a,
-    }
-
-    def __init__(self, fields):
-        self.fields = list(fields)
-        # Longest first prevents a shorter column name from being substituted
-        # inside a longer one.
-        self.fields_by_length = sorted(self.fields, key=len, reverse=True)
-
-    def _prepare(self, expression):
-        """
-        Convert CSV column references to internal variables.
-
-        Both of these work:
-            RPM / Speed
-            RPM / [GPS Speed]
-
-        Brackets are recommended for headings containing spaces or punctuation.
-        """
-        expression = str(expression).strip()
-        values = {}
-        counter = 0
-
-        def add_field(field):
-            nonlocal counter
-            name = f"__c{counter}"
-            counter += 1
-            values[name] = field
-            return name
-
-        # First replace explicit [column name] references.
-        bracket_pattern = re.compile(r"\[([^\]]+)\]")
-
-        def bracket_replace(match):
-            field = match.group(1)
-            if field not in self.fields:
-                raise ValueError(f"CSV column not found: {field}")
-            return add_field(field)
-
-        prepared = bracket_pattern.sub(bracket_replace, expression)
-
-        # Then replace ordinary identifier-like CSV headings, such as RPM,
-        # Speed, Throttle, BrakePressure.
-        for field in self.fields_by_length:
-            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", field):
-                continue
-            pattern = rf"(?<![A-Za-z0-9_]){re.escape(field)}(?![A-Za-z0-9_])"
-            if re.search(pattern, prepared):
-                variable = add_field(field)
-                prepared = re.sub(pattern, variable, prepared)
-
-        return prepared, values
-
-    def evaluate(self, expression, row):
-        prepared, variables = self._prepare(expression)
-        tree = ast.parse(prepared, mode="eval")
-
-        numeric_values = {}
-        for variable, field in variables.items():
-            raw = row.get(field)
-            try:
-                numeric_values[variable] = float(raw)
-            except (TypeError, ValueError):
-                raise ValueError(f"Non-numeric value in CSV column: {field}")
-
-        def visit(node):
-            if isinstance(node, ast.Expression):
-                return visit(node.body)
-
-            if isinstance(node, ast.Constant):
-                if isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
-                    return float(node.value)
-                raise ValueError("Only numeric constants are allowed.")
-
-            if isinstance(node, ast.Name):
-                if node.id not in numeric_values:
-                    raise ValueError(f"Unknown name in expression: {node.id}")
-                return numeric_values[node.id]
-
-            if isinstance(node, ast.BinOp) and type(node.op) in self.ALLOWED_BINOPS:
-                left = visit(node.left)
-                right = visit(node.right)
-                if isinstance(node.op, ast.Div) and right == 0:
-                    return None
-                return self.ALLOWED_BINOPS[type(node.op)](left, right)
-
-            if isinstance(node, ast.UnaryOp) and type(node.op) in self.ALLOWED_UNARY:
-                return self.ALLOWED_UNARY[type(node.op)](visit(node.operand))
-
-            raise ValueError("Expression contains an unsupported operation.")
-
-        return visit(tree)
+from expressions import ExpressionEvaluator
 
 
 def read_timed_laps(filename):
@@ -247,6 +143,7 @@ class Dashboard:
         self.video_path = video_path
         self.mpv_process = None
         self.config = config
+        self.config_path = Path(__file__).resolve().parent / "dashboard.yaml"
         self.expression_evaluator = ExpressionEvaluator(race_data.fields)
         self.widgets = []
         self.active_lap = None
@@ -342,6 +239,8 @@ class Dashboard:
                   command=self.show_laps).pack(side="left", padx=8)
         tk.Button(frames, text="Best segments...", width=16,
                   command=self.show_segments).pack(side="left", padx=2)
+        from expression_editor import edit_dashboard
+        tk.Button(root, text="Edit gauges...", command=lambda: edit_dashboard(self)).pack(pady=3)
         self.status = tk.Label(root, text="MPV is not running.")
         self.status.pack(pady=(7, 12))
 
@@ -559,8 +458,7 @@ class Dashboard:
             try:
                 # Validate syntax and column names now. Numeric values are
                 # supplied later from each race-data row.
-                self.expression_evaluator._prepare(expression)
-                ast.parse(self.expression_evaluator._prepare(expression)[0], mode="eval")
+                self.expression_evaluator.compile(expression)
             except (ValueError, SyntaxError) as e:
                 tk.Label(
                     self.display_frame,
@@ -815,10 +713,11 @@ def main():
     race_data = RaceData(race_path)
 
     root = tk.Tk()
-    Dashboard(
+    dashboard = Dashboard(
         root, race_data, calibration, args.socket,
         video_path, config, args.track
     )
+    dashboard.config_path = config_path
     root.mainloop()
 
 
