@@ -171,8 +171,17 @@ class Dashboard:
             font=("TkDefaultFont", 20, "bold"),
         ).pack(pady=(14, 8))
 
-        self.display_frame = tk.Frame(root)
-        self.display_frame.pack(fill="both", expand=True, padx=25)
+        gauge_area = tk.Frame(root)
+        gauge_area.pack(fill="both", expand=True, padx=25)
+        self.gauge_canvas = tk.Canvas(gauge_area, height=260, highlightthickness=0)
+        gauge_scroll = ttk.Scrollbar(gauge_area, orient="vertical", command=self.gauge_canvas.yview)
+        self.gauge_canvas.configure(yscrollcommand=gauge_scroll.set)
+        gauge_scroll.pack(side="right", fill="y")
+        self.gauge_canvas.pack(side="left", fill="both", expand=True)
+        self.display_frame = tk.Frame(self.gauge_canvas)
+        gauge_window = self.gauge_canvas.create_window((0,0), window=self.display_frame, anchor="nw")
+        self.display_frame.bind("<Configure>", lambda e:self.gauge_canvas.configure(scrollregion=self.gauge_canvas.bbox("all")))
+        self.gauge_canvas.bind("<Configure>", lambda e:self.gauge_canvas.itemconfigure(gauge_window,width=e.width))
 
         self.build_display()
 

@@ -75,43 +75,100 @@ class ExpressionEditor(ttk.LabelFrame):
             messagebox.showerror('Cannot save expression',str(exc),parent=self)
 
 
+def save_dashboard_config(dashboard, items):
+    """Persist the complete list before changing the live dashboard."""
+    config = dict(dashboard.config); config['display'] = items
+    path = dashboard.config_path
+    temp = path.with_name(path.name+'.tmp')
+    temp.write_text(yaml.safe_dump(config,sort_keys=False),encoding='utf-8')
+    temp.replace(path)
+    dashboard.config = config
+    for child in dashboard.display_frame.winfo_children(): child.destroy()
+    dashboard.widgets.clear(); dashboard.build_display()
+
+
 def edit_dashboard(dashboard):
-    window = tk.Toplevel(dashboard.root); window.title('Dashboard expressions')
+    import copy
+    window = tk.Toplevel(dashboard.root); window.title('Dashboard gauges')
     window.transient(dashboard.root); window.grab_set()
-    items = dashboard.config.get('display',[])
-    if not items:
-        window.destroy(); return
-    choice = ttk.Combobox(window,values=[f'{i+1}. {v.get("label", "Gauge")}' for i,v in enumerate(items)],state='readonly',width=45)
-    choice.pack(fill='x',padx=12,pady=8); choice.current(0)
+    items = copy.deepcopy(dashboard.config.get('display',[]))
+    choice = ttk.Combobox(window,state='readonly',width=45)
+    choice.pack(fill='x',padx=12,pady=8)
+    actions = ttk.Frame(window); actions.pack(fill='x',padx=12)
     editor = ExpressionEditor(window,dashboard.expression_evaluator); editor.pack(fill='x',padx=12,pady=8)
     limits = ttk.Frame(window); limits.pack(pady=5)
     kind = tk.StringVar(value='number')
     ttk.Label(limits,text='Display').pack(side='left',padx=5)
     ttk.Combobox(limits,textvariable=kind,values=['number','bar'],state='readonly',width=9).pack(side='left')
-    low = tk.StringVar(); high = tk.StringVar()
+    low = tk.StringVar(value='0'); high = tk.StringVar(value='100')
     for label,var in [('Gauge minimum',low),('Gauge maximum',high)]:
         ttk.Label(limits,text=label).pack(side='left',padx=5); ttk.Entry(limits,textvariable=var,width=10).pack(side='left')
-    def load():
-        item=items[choice.current()]; editor.load(item); editor.name.set(item.get('label','Gauge'))
-        kind.set(item.get('type','number').lower())
-        low.set(str(item.get('min',0))); high.set(str(item.get('max',100)))
-    choice.bind('<<ComboboxSelected>>',lambda e:load()); load()
-    def apply():
-        try:
-            item = editor.get(); a,b = float(low.get()),float(high.get())
-            if not math.isfinite(a) or not math.isfinite(b) or a >= b: raise ValueError('Gauge minimum must be less than maximum.')
-            item.update(min=a,max=b,type=kind.get())
-            updated = dict(items[choice.current()])
-            # The edited expression produces the display units directly.
+    selected = None
+    def load(index):
+        nonlocal selected
+        selected = index
+        choice.configure(values=[f'{i+1}. {v.get("label", "Gauge")}' for i,v in enumerate(items)])
+        if index is None:
+            choice.set('No gauges — click Add Gauge')
+        else:
+            choice.current(index)
+            item=items[index]; editor.load(item); editor.name.set(item.get('label','Gauge'))
+            kind.set(item.get('type','number').lower())
+            low.set(str(item.get('min',0))); high.set(str(item.get('max',100)))
+        delete_button.state(['disabled'] if index is None else ['!disabled'])
+        up_button.state(['disabled'] if index is None or index == 0 else ['!disabled'])
+        down_button.state(['disabled'] if index is None or index == len(items)-1 else ['!disabled'])
+
+    def capture():
+        if selected is None: return
+        item = editor.get(); a,b = float(low.get()),float(high.get())
+        if not item['label']: raise ValueError('Enter a gauge label in Saved name.')
+        if not math.isfinite(a) or not math.isfinite(b) or a >= b: raise ValueError('Gauge minimum must be less than maximum.')
+        item.update(min=a,max=b,type=kind.get())
+        updated = dict(items[selected])
+        if item['expression'] != updated.get('expression',updated.get('channel')):
             for key in ('channel','conversion','scale','offset'): updated.pop(key,None)
-            updated.update(item)
-            config = dict(dashboard.config); display=list(items); display[choice.current()]=updated; config['display']=display
-            path = dashboard.config_path
-            temp = path.with_name(path.name+'.tmp')
-            temp.write_text(yaml.safe_dump(config,sort_keys=False),encoding='utf-8'); temp.replace(path)
-            dashboard.config = config
-            for child in dashboard.display_frame.winfo_children(): child.destroy()
-            dashboard.widgets.clear(); dashboard.build_display(); window.destroy()
+        updated.update(item); items[selected] = updated
+
+    def perform(action):
+        try: action()
         except (OSError,ValueError) as exc:
-            messagebox.showerror('Cannot update gauge',str(exc),parent=window)
-    ttk.Button(window,text='Apply and save gauge',command=apply).pack(pady=12)
+            messagebox.showerror('Cannot update gauges',str(exc),parent=window)
+
+    def choose():
+        new = choice.current()
+        try: capture()
+        except ValueError:
+            if selected is not None: choice.current(selected)
+            raise
+        load(new)
+
+    def add():
+        capture()
+        expression = 'RPM' if 'RPM' in dashboard.expression_evaluator.fields else '['+dashboard.expression_evaluator.fields[0]+']'
+        items.append(dict(expression=expression,label='New Gauge',type='number',units='',decimals=2,min=0,max=100))
+        load(len(items)-1)
+
+    def delete():
+        if selected is None: return
+        old = selected; items.pop(old)
+        load(min(old,len(items)-1) if items else None)
+
+    def move(delta):
+        if selected is None: return
+        capture(); target=selected+delta
+        if 0 <= target < len(items):
+            items[selected],items[target]=items[target],items[selected]
+            load(target)
+
+    def apply():
+        capture(); save_dashboard_config(dashboard,items); window.destroy()
+
+    ttk.Button(actions,text='Add Gauge',command=lambda:perform(add)).pack(side='left',padx=4)
+    delete_button=ttk.Button(actions,text='Delete Gauge',command=lambda:perform(delete)); delete_button.pack(side='left',padx=4)
+    up_button=ttk.Button(actions,text='Move Up',command=lambda:perform(lambda:move(-1))); up_button.pack(side='left',padx=4)
+    down_button=ttk.Button(actions,text='Move Down',command=lambda:perform(lambda:move(1))); down_button.pack(side='left',padx=4)
+    choice.bind('<<ComboboxSelected>>',lambda e:perform(choose))
+    load(0 if items else None)
+    ttk.Label(window,text='Changes take effect with Apply and save gauges. Closing this window discards gauge changes.').pack(padx=12,pady=6)
+    ttk.Button(window,text='Apply and save gauges',command=lambda:perform(apply)).pack(pady=12)
