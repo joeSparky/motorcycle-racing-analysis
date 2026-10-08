@@ -38,3 +38,9 @@ File selections remain locked until all analysis windows close, so the open scre
 ## Adding and arranging gauges
 
 In Edit gauges, Add Gauge creates a new entry. Enter its formula or choose a saved expression, set its label, number/bar display, units, precision and bounds. Delete Gauge removes the selected entry; Move Up and Move Down change display order. Apply and save gauges saves the whole list and updates the running dashboard. Closing the editor without applying discards gauge-list edits (saved expressions are saved separately). An empty dashboard is allowed; use Add Gauge to populate it again. The dashboard gauge area has a vertical scrollbar while playback controls stay visible.
+
+## Track position during playback
+
+With a prepared Track project selected in the launcher, starting the Dashboard video also opens a track map. The red dot shows the nearest recorded GPS sample, using the same calibrated time and sync adjustment as the dashboard. Seeking, stepping and pausing update the dot. The outline is the prepared reference track; the black square is its position-zero start/finish reference. North is up, with equal horizontal and vertical distance scale. The dot uses actual recorded GPS coordinates, not a snapped position on the outline. Missing/invalid GPS, data gaps over half a second from the video time and video outside the recording hide the dot. Far-off-track locations can fall outside the map view.
+
+Close the map independently with its X. Click Track map on Dashboard to reopen it or select a prepared track if none was chosen. Closing Dashboard closes its map and video; Statistics remains independent. No aerial imagery is required.

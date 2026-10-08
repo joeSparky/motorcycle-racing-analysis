@@ -151,6 +151,7 @@ class Dashboard:
         self.pending_lap = None
         self.lap_dialog = None
         self.track_path = Path(track_path) if track_path else None
+        self.track_view = None
         self.segment_process = None
         self.segment_dialog = None
         self.segment_output = None
@@ -250,6 +251,7 @@ class Dashboard:
                   command=self.show_segments).pack(side="left", padx=2)
         from expression_editor import edit_dashboard
         tk.Button(root, text="Edit gauges...", command=lambda: edit_dashboard(self)).pack(pady=3)
+        tk.Button(root, text="Track map…", command=self.show_track_map).pack(pady=3)
         self.status = tk.Label(root, text="MPV is not running.")
         self.status.pack(pady=(7, 12))
 
@@ -426,6 +428,22 @@ class Dashboard:
             return False
         self.mpv.command("set_property", "pause", False)
         return True
+
+    def show_track_map(self, automatic=False):
+        if self.track_view is not None and self.track_view.exists():
+            self.track_view.window.lift(); return
+        if self.track_path is None:
+            if automatic: return
+            filename=filedialog.askopenfilename(parent=self.root,title='Choose prepared track project',filetypes=[('Track project JSON','*.json')])
+            if not filename: return
+            self.track_path=Path(filename)
+        try:
+            from trackView import TrackView
+            if not {'GPS Latitude','GPS Longitude'}.issubset(self.race_data.fields):
+                raise ValueError('This recording has no GPS latitude/longitude channels.')
+            self.track_view=TrackView(self.root,self.track_path)
+        except (OSError,ValueError,KeyError) as exc:
+            messagebox.showerror('Cannot open track map',str(exc),parent=self.root)
 
     def publish_sync(self):
         if self.sync_state:
@@ -641,6 +659,7 @@ class Dashboard:
 
         self.start_video_button.config(text="RESTART VIDEO")
         self.status.config(text="Starting MPV...")
+        self.show_track_map(automatic=True)
 
     def update_dashboard(self):
         try:
@@ -662,6 +681,11 @@ class Dashboard:
             self.video_time_label.config(text=f"Video {format_video_time(video_time)}")
             self.csv_time_label.config(text=f"CSV {csv_time:.3f} s")
 
+            if self.track_view is not None and self.track_view.exists():
+                if self.race_data.times[0] <= csv_target <= self.race_data.times[-1]:
+                    self.track_view.update(csv_target,csv_time,row)
+                else:
+                    self.track_view.unavailable("Video is outside the recorded data interval.")
             for widget in self.widgets:
                 self.update_item(widget, row)
 
@@ -677,6 +701,8 @@ class Dashboard:
         except (OSError, ConnectionError, json.JSONDecodeError):
             self.mpv.close()
             self.status.config(text="Waiting for MPV...")
+            if self.track_view is not None and self.track_view.exists():
+                self.track_view.unavailable()
 
         self.root.after(50, self.update_dashboard)
 
