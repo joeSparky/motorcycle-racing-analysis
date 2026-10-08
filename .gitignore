@@ -30,3 +30,7 @@ setup-settings.json
 last-race.json
 expressions.json
 *.statistics.json
+
+# Independent analysis windows
+statisticsScreen-log.txt
+sessionInfo-log.txt

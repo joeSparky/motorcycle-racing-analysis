@@ -234,7 +234,6 @@ class Dashboard:
         self.sync_label = tk.Label(sync, text="+0.0 s")
         self.sync_label.pack(side="left", padx=6)
         tk.Button(sync, text="Reset", command=self.reset_sync).pack(side="left", padx=2)
-        tk.Button(sync, text="Done", width=10, command=self.close).pack(side="left", padx=12)
         tk.Button(frames, text="Best lap / Laps...", width=18,
                   command=self.show_laps).pack(side="left", padx=8)
         tk.Button(frames, text="Best segments...", width=16,
@@ -355,7 +354,6 @@ class Dashboard:
         tk.Button(buttons, text="Play best segment", command=lambda: play(True)).pack(side="left", padx=4)
         tk.Button(buttons, text="Play selected pass", command=play).pack(side="left", padx=4)
         tk.Checkbutton(buttons, text="Repeat", variable=self.repeat_lap).pack(side="left", padx=4)
-        tk.Button(buttons, text="Done", command=dialog.destroy).pack(side="left", padx=4)
         tk.Label(dialog, text="Observed lap counts track-position-zero crossings; it may differ from the beacon lap list.").pack(pady=(0,6))
         summary.bind("<<TreeviewSelect>>", fill)
         detail.bind("<Double-1>", lambda event: play())
@@ -394,7 +392,6 @@ class Dashboard:
         tk.Button(buttons, text="Play best lap", command=lambda: self.play_lap(best)).pack(side="left", padx=4)
         tk.Button(buttons, text="Play selected lap", command=lambda: self.play_lap(selected())).pack(side="left", padx=4)
         tk.Checkbutton(buttons, text="Repeat lap", variable=self.repeat_lap).pack(side="left", padx=4)
-        tk.Button(buttons, text="Done", command=dialog.destroy).pack(side="left", padx=4)
         table.bind("<Double-1>", lambda event: self.play_lap(selected()))
 
     def play_lap(self, lap):

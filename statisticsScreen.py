@@ -44,7 +44,6 @@ class StatisticsScreen:
         self.segments=ttk.Combobox(row,textvariable=self.segment,values=[f'{i+1}: {s["start"]}–{s["end"]}' for i,s in enumerate(sections)],state='readonly',width=20)
         self.segments.pack(side='left',padx=8); self.segments.bind('<<ComboboxSelected>>',lambda e:self.choose_segment())
         ttk.Button(row,text='Evaluate',command=self.evaluate).pack(side='left',padx=8)
-        ttk.Button(row,text='Done',command=root.destroy).pack(side='left')
         self.hint=tk.StringVar(); ttk.Label(box,textvariable=self.hint).grid(row=2,column=0,columnspan=5,sticky='w')
         self.summary=tk.StringVar(value='Choose an expression and interval, then click Evaluate.')
         ttk.Label(frame,textvariable=self.summary,font=('TkDefaultFont',11),wraplength=1050).pack(fill='x',pady=8)

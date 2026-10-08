@@ -46,7 +46,6 @@ class SessionInfo:
         if metadata: table.selection_set('0'); selected()
         else:
             detail.configure(state='normal'); detail.insert('1.0','No metadata fields were found.'); detail.configure(state='disabled')
-        ttk.Button(frame,text='Done',command=root.destroy).pack(anchor='e',pady=(10,0))
 
 
 def main():
