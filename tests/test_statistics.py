@@ -31,7 +31,7 @@ class StatisticsTests(unittest.TestCase):
     def test_all_statistics_and_tied_mode(self):
         s=self.session; r=s.calculate('RPM',s.select('Entire recording'))
         self.assertEqual(r['mean'],1400); self.assertEqual(r['median'],1000)
-        self.assertEqual(r['modes'],[0]); self.assertEqual(r['mode_count'],2)
+        self.assertEqual(sum(r['histogram_counts']),5)
         self.assertEqual(r['weighted_mean'],1250); self.assertEqual(r['weighted_duration'],4)
         r=s.calculate('RPM/Speed',s.select('Entire recording'))
         self.assertEqual((r['valid'],r['omitted']),(3,2)); self.assertEqual(r['median'],100)
@@ -59,11 +59,22 @@ class StatisticsTests(unittest.TestCase):
         self.assertEqual(s.select('Segment of lap',lap=1,position_start=9800,position_end=200),[True,False,False,False,False])
         self.assertEqual(s.select('Segment of lap',lap=2,position_start=0,position_end=10000),[False,False,True,True,False])
 
-    def test_binned_ties_and_negative_bins(self):
+    def test_histogram_fixed_width_negative_values_and_boundaries(self):
         s=self.session; r=s.calculate('RPM-1500',s.select('Entire recording'),1000)
-        self.assertEqual(r['modes'],[-2]); self.assertEqual(r['mode_count'],2)
-        r=s.calculate('Speed',s.select('Entire recording'))
-        self.assertEqual(r['modes'],[0,20])
+        self.assertEqual(r['histogram_edges'],[-2000,-1000,0,1000,2000,3000])
+        self.assertEqual(r['histogram_counts'],[2,1,1,0,1])
+        r=s.calculate('Speed',s.select('Entire recording'),10)
+        self.assertEqual(r['histogram_edges'],[0,10,20,30])
+        self.assertEqual(r['histogram_counts'],[2,1,2])
+
+    def test_histogram_auto_constant_filtered_and_excessive_bins(self):
+        s=self.session
+        r=s.calculate('RPM/Speed',s.select('Entire recording'))
+        self.assertEqual(sum(r['histogram_counts']),3)
+        r=s.calculate('1',s.select('Entire recording'))
+        self.assertEqual(sum(r['histogram_counts']),5)
+        self.assertTrue(all(b>a for a,b in zip(r['histogram_edges'],r['histogram_edges'][1:])))
+        with self.assertRaises(ValueError): s.calculate('RPM',s.select('Entire recording'),.01)
 
     def test_comparison_and_single_sample(self):
         s=self.session; r=s.calculate('Throttle > 90',s.select('Entire recording'))

@@ -48,7 +48,7 @@ class StatisticsScreen:
         self.hint=tk.StringVar(); ttk.Label(box,textvariable=self.hint).grid(row=2,column=0,columnspan=5,sticky='w')
         self.summary=tk.StringVar(value='Choose an expression and interval, then click Evaluate.')
         ttk.Label(frame,textvariable=self.summary,font=('TkDefaultFont',11),wraplength=1050).pack(fill='x',pady=8)
-        self.figure=Figure(figsize=(10,4),dpi=100); self.axes=self.figure.add_subplot()
+        self.figure=Figure(figsize=(10,4),dpi=100); grid=self.figure.add_gridspec(2,1,height_ratios=[2,1]); self.axes=self.figure.add_subplot(grid[0]); self.histogram_axes=self.figure.add_subplot(grid[1])
         self.canvas=FigureCanvasTkAgg(self.figure,master=frame); self.canvas.get_tk_widget().pack(fill='both',expand=True)
         self.toolbar=NavigationToolbar2Tk(self.canvas,frame)
         navigation=ttk.Frame(frame); navigation.pack(fill='x')
@@ -89,15 +89,8 @@ class StatisticsScreen:
             if mode=='Race running':
                 save_json(self.race_path,dict(race_start=args['start'],race_end=args['end'])); self.race_bounds=(args['start'],args['end'])
             fmt=lambda v: f'{v:,.{item["decimals"]}f}' if v is not None else 'unavailable'
-            if result['mode_count']==1: mode_text='No repeated values / bins'
-            else:
-                def mode_label(v):
-                    return f'[{fmt(v*item["bin_width"])}, {fmt((v+1)*item["bin_width"])})' if item['bin_width'] else fmt(v)
-                mode_text=', '.join(mode_label(v) for v in result['modes'][:5])
-                if len(result['modes'])>5: mode_text+=f' (+{len(result["modes"])-5} tied modes)'
-                mode_text+=f' ({result["mode_count"]} samples each)'
             self.summary.set(f'Mean: {fmt(result["mean"])}   Median: {fmt(result["median"])}   Min: {fmt(result["minimum"])} at {result["minimum_time"]:.3f} s   Max: {fmt(result["maximum"])} at {result["maximum_time"]:.3f} s {item["units"]}\n'
-                f'Mode: {mode_text}\nValid: {result["valid"]:,}   Omitted: {result["omitted"]:,}   Selected: {result["selected"]:,}   '
+                f'Valid: {result["valid"]:,}   Omitted: {result["omitted"]:,}   Selected: {result["selected"]:,}   '
                 f'Time-weighted mean: {fmt(result["weighted_mean"])} (over {result["weighted_duration"]:.3f} s; trapezoids, gaps >1 s excluded)')
             x=[]; y=[]
             for i,(t,v) in enumerate(zip(self.session.times,result['values'])):
@@ -108,11 +101,18 @@ class StatisticsScreen:
             if len(selected_times)>1: self.axes.set_xlim(selected_times[0],selected_times[-1])
             self.axes.set_xlabel('Recording time (seconds)'); self.axes.set_ylabel(item['units'] or 'Value')
             self.axes.set_title(item['expression']+' — '+mode); self.axes.grid(True,alpha=.25)
+            self.histogram_axes.clear()
+            edges=result['histogram_edges']; counts=result['histogram_counts']
+            self.histogram_axes.bar(edges[:-1],counts,width=[b-a for a,b in zip(edges,edges[1:])],align='edge',edgecolor='white',linewidth=.5)
+            self.histogram_axes.set_xlabel(item['units'] or 'Expression value')
+            self.histogram_axes.set_ylabel('Sample count')
+            self.histogram_axes.set_title('Histogram — same selected interval')
+            self.histogram_axes.grid(True,axis='y',alpha=.25)
             self.result=result; self.cursor=None
             self.figure.tight_layout(); self.canvas.draw()
         except (ValueError,OSError,KeyError) as exc:
             self.result=None; self.cursor=None
-            self.summary.set('No current result — '+str(exc)); self.axes.clear(); self.canvas.draw()
+            self.summary.set('No current result — '+str(exc)); self.axes.clear(); self.histogram_axes.clear(); self.canvas.draw()
             messagebox.showerror('Cannot evaluate',str(exc),parent=self.root)
 
 

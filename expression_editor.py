@@ -42,10 +42,10 @@ class ExpressionEditor(ttk.LabelFrame):
         channels.bind('<<ComboboxSelected>>',lambda e:self.expression.set(self.expression.get()+'['+channels.get()+']'))
         ttk.Label(self,text='Append channel').grid(row=2,column=0,sticky='w')
         settings = ttk.Frame(self); settings.grid(row=3,column=0,columnspan=3,sticky='w',pady=5)
-        for label,var in [('Units',self.units),('Decimals',self.decimals),('Mode bin width',self.bin_width)]:
+        for label,var in [('Units',self.units),('Decimals',self.decimals),('Histogram bin width',self.bin_width)]:
             ttk.Label(settings,text=label).pack(side='left',padx=4)
             ttk.Entry(settings,textvariable=var,width=9).pack(side='left')
-        ttk.Label(self,text='Use [GPS Speed] for channel names with spaces. Operators: + − * / % ** and comparisons. Mode width 0 = exact values.').grid(row=4,column=0,columnspan=3,sticky='w')
+        ttk.Label(self,text='Use [GPS Speed] for channel names with spaces. Operators: + − * / % ** and comparisons. Histogram width 0 = automatic bins.').grid(row=4,column=0,columnspan=3,sticky='w')
         if self.saved:
             self.name.set(next(iter(self.saved))); self.load(self.saved[self.name.get()])
         elif 'RPM' not in evaluator.fields:

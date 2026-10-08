@@ -4,7 +4,7 @@ Open **Statistics** from Race-Analysis.cmd. Select an original AIM CSV in the la
 
 On the statistics screen, enter a formula, choose the interval and click **Evaluate**. For example, `RPM / Speed` or `RPM / [GPS Speed]`. These use the CSV's original units; the Units box is a label, not a conversion. Comparisons such as `Throttle > 90` return 1 or 0, so their mean is the fraction of valid selected samples meeting the condition. Arithmetic, parentheses and comparisons are supported; Python functions and arbitrary code are not.
 
-Choose a saved name and click **Save expression** to reuse a formula, units, decimal precision and mode-bin width. Saved expressions are local to this installation in expressions.json.
+Choose a saved name and click **Save expression** to reuse a formula, units, decimal precision and histogram-bin width. Saved expressions are local to this installation in expressions.json.
 
 ## Intervals
 
@@ -19,7 +19,7 @@ The plot uses recording seconds, with toolbar zoom, pan and image saving. Exclud
 
 ## Results
 
-Mean and median use valid selected samples equally. Mode width zero means exact values. A positive width groups values into half-open bins aligned to zero (for example, width 100 means [4000, 4100)). Tied modes are identified; if every value/bin occurs once there is no repeated mode. Display rounding does not change calculations or bin membership.
+Mean and median use valid selected samples equally. The histogram displays counts for the same valid expression values and selected interval as the time graph. A positive Histogram bin width makes half-open bins aligned to zero (for example, width 100 gives [4000, 4100)). Zero chooses between 1 and 100 equal-width bins automatically from the valid sample count. Constant and single-sample results are supported. More than 1000 fixed-width bins is rejected; increase the width or choose automatic bins. Display rounding does not change bin membership. The histogram counts samples, rather than elapsed time.
 
 Minimum and maximum include their recording times in seconds (the first occurrence within the selected interval when tied). Valid/omitted/selected counts and a time-weighted mean are also shown. Time weighting integrates trapezoids between adjacent valid selected samples only, excluding gaps over one second. Its included duration is displayed. This duration may be less than the requested interval because boundary interpolation is not performed. A single valid sample has no time-weighted mean. Missing channels and invalid formulas produce an error; per-sample division by zero, nonnumeric values, overflow and nonfinite results are omitted.
 
