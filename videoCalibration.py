@@ -246,7 +246,6 @@ class CalibrationApp:
 
         self.status = tk.Label(root, text="Start point has not been set.")
         self.status.pack(pady=(0, 4))
-        tk.Button(root, text="Done", width=12, command=self.close).pack(pady=(0, 8))
         self.read_saved_points()
 
         # Keyboard GPS-dot movement. MPV keeps its own normal keyboard controls.

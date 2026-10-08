@@ -60,7 +60,6 @@ class App:
         root.title("Track Section Editor");root.geometry("1050x780")
         bar=tk.Frame(root);bar.pack(fill="x",padx=8,pady=6)
         tk.Button(bar,text="SAVE SECTIONS",command=self.save).pack(side="left")
-        tk.Button(bar,text="DONE",command=self.done).pack(side="left",padx=5)
         tk.Button(bar,text="CLEAR",command=self.clear).pack(side="left")
         tk.Label(bar,text="Click track: split  •  Drag boundary: resize  •  Right-click boundary: merge").pack(side="left",padx=10)
         self.info=tk.Label(root);self.info.pack(fill="x")

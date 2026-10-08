@@ -17,8 +17,12 @@ class Launcher:
         self.root = root
         self.child = None
         self.log = None
+        self.csv_children = {}
+        self.csv_buttons = {}
+        self.video_socket = r"\\.\pipe\race-statistics-" + uuid.uuid4().hex
+        self.sync_state = BASE/("video-link-" + uuid.uuid4().hex + ".json")
         root.title("Steve's Race Analysis")
-        root.geometry('850x450')
+        root.geometry('850x490')
         root.minsize(760, 380)
         self.race = tk.StringVar()
         self.video = tk.StringVar()
@@ -43,21 +47,30 @@ class Launcher:
         ttk.Label(frame, text='Track project').grid(row=3, column=0, sticky='w', padx=(0,10), pady=6)
         ttk.Entry(frame, textvariable=self.track).grid(row=3, column=1, sticky='ew')
         ttk.Button(frame, text='Browse...', command=lambda: self.choose(self.track)).grid(row=3, column=2, padx=(10,0))
+        self.file_controls = [w for w in frame.winfo_children() if isinstance(w, (ttk.Entry, ttk.Button))]
         buttons = ttk.Frame(frame)
         buttons.grid(row=4, column=0, columnspan=3, sticky='w', pady=20)
         self.buttons = []
-        for label, script in [('1. Calibrate Video', 'videoCalibration.py'), ('2. Open Dashboard', 'dashboard.py')]:
+        for label, script in [('Calibrate Video', 'videoCalibration.py'), ('Open Dashboard', 'dashboard.py')]:
             b = ttk.Button(buttons, text=label, command=lambda s=script:self.launch(s))
             b.pack(side='left', padx=(0,12))
             self.buttons.append(b)
+        statistics_button = ttk.Button(buttons, text='Statistics', command=self.open_statistics)
+        statistics_button.pack(side='left', padx=(0,12))
+        self.csv_buttons['statisticsScreen.py'] = statistics_button
         editor_button = ttk.Button(buttons, text='Edit Segments', command=self.edit_segments)
         editor_button.pack(side='left', padx=(0,12))
         self.buttons.append(editor_button)
-        ttk.Label(frame, text='New recording: calibrate first. Saved calibration: open the dashboard directly.', wraplength=690).grid(row=5, column=0, columnspan=3, sticky='w')
-        ttk.Label(frame, textvariable=self.status, wraplength=690).grid(row=6, column=0, columnspan=3, sticky='w', pady=(16,0))
+        metadata_button = ttk.Button(frame, text='Session Information', command=lambda:self.open_csv_screen('sessionInfo.py'))
+        metadata_button.grid(row=5,column=0,columnspan=3,sticky='w',pady=(0,8))
+        self.csv_buttons['sessionInfo.py'] = metadata_button
+        ttk.Label(frame, text='New recording: calibrate first. Saved calibration: open the dashboard directly.', wraplength=690).grid(row=6, column=0, columnspan=3, sticky='w')
+        ttk.Label(frame, textvariable=self.status, wraplength=690).grid(row=7, column=0, columnspan=3, sticky='w', pady=(16,0))
         root.protocol('WM_DELETE_WINDOW', self.close)
 
     def choose(self, var):
+        if self.running():
+            return
         types = [('CSV files','*.csv'),('All files','*.*')] if var is self.race else [('Video or saved timeline','*.mp4 *.mov *.mkv *.avi *.m4v *.edl'),('All files','*.*')]
         if var is self.track:
             types = [('Track project JSON','*.json'),('All files','*.*')]
@@ -67,8 +80,8 @@ class Launcher:
             self.save()
 
     def choose_pieces(self):
-        if self.child and self.child.poll() is None:
-            messagebox.showinfo('Close analysis first', 'Close calibration or dashboard before changing video pieces.', parent=self.root)
+        if self.running():
+            messagebox.showinfo('Close analysis first', 'Close the open analysis windows before changing video pieces.', parent=self.root)
             return
         paths = filedialog.askopenfilenames(parent=self.root, title='Select all pieces of ONE continuous recording', filetypes=[('Video files','*.mp4 *.mov *.mkv *.avi *.m4v')])
         if not paths:
@@ -111,9 +124,8 @@ class Launcher:
             self.log = open(BASE/'analysis-log.txt', 'w', encoding='utf-8')
             self.child = subprocess.Popen([sys.executable, str(script), '--track', str(track)],
                 cwd=BASE, env=env, stdout=self.log, stderr=self.log)
-            for b in self.buttons:
-                b.state(['disabled'])
-            self.status.set('Edit boundaries, then click DONE to save and return here.')
+            self.refresh_controls()
+            self.status.set('Edit boundaries and save sections, then close the editor window.')
             self.root.after(300, self.poll)
         except Exception as exc:
             if self.log:
@@ -121,7 +133,66 @@ class Launcher:
                 self.log = None
             messagebox.showerror('Cannot open segment editor', str(exc), parent=self.root)
 
+    def open_statistics(self):
+        self.open_csv_screen('statisticsScreen.py')
+
+    def open_csv_screen(self, script):
+        if script in self.csv_children:
+            return
+        log = None
+        try:
+            race = Path(self.race.get()).resolve()
+            if not race.is_file():
+                raise ValueError('Choose an existing original AIM race CSV first.')
+            command = [sys.executable, str(BASE/script), '--race', str(race)]
+            if script == 'statisticsScreen.py':
+                command.extend(['--socket',self.video_socket,'--sync-state',str(self.sync_state)])
+            if script == 'statisticsScreen.py' and self.track.get().strip():
+                command.extend(['--track', str(Path(self.track.get()).resolve())])
+            self.save()
+            env = os.environ.copy(); env['PYTHONIOENCODING'] = 'utf-8'
+            path = BASE/(Path(script).stem + '-log.txt')
+            log = open(path, 'w', encoding='utf-8')
+            process = subprocess.Popen(command, cwd=BASE, env=env, stdout=log, stderr=log)
+            self.csv_children[script] = (process, log, path)
+            self.refresh_controls()
+            self.root.after(300, lambda:self.poll_csv(script))
+        except Exception as exc:
+            if log: log.close()
+            messagebox.showerror('Cannot open CSV screen', str(exc), parent=self.root)
+
+    def poll_csv(self, script):
+        process, log, path = self.csv_children[script]
+        code = process.poll()
+        if code is None:
+            self.root.after(300, lambda:self.poll_csv(script))
+            return
+        log.close()
+        del self.csv_children[script]
+        self.refresh_controls()
+        if code:
+            detail = path.read_text(encoding='utf-8',errors='replace')
+            messagebox.showerror('Analysis stopped', detail[-2500:] or f'See {path.name}.', parent=self.root)
+
+    def running(self):
+        return bool(self.csv_children) or (self.child is not None and self.child.poll() is None)
+
+    def refresh_controls(self):
+        video_active = self.child is not None and self.child.poll() is None
+        for button in self.buttons:
+            button.state(['disabled'] if video_active else ['!disabled'])
+        for script, button in self.csv_buttons.items():
+            button.state(['disabled'] if script in self.csv_children else ['!disabled'])
+        for widget in self.file_controls:
+            widget.state(['disabled'] if self.running() else ['!disabled'])
+        if self.running():
+            self.status.set('Analysis windows are open. Statistics and Dashboard can run together. Close all analysis windows to change files.')
+        else:
+            self.status.set('Ready. Choose calibration, dashboard, statistics, or session information.')
+
     def launch(self, script):
+        if self.child and self.child.poll() is None:
+            return
         try:
             race = Path(self.race.get()).resolve()
             video = Path(self.video.get()).resolve()
@@ -146,14 +217,17 @@ class Launcher:
             env = os.environ.copy()
             env['MPV_EXE'] = settings['mpv']
             env['PYTHONIOENCODING'] = 'utf-8'
-            pipe = '\\\\.\\pipe\\race-analysis-' + uuid.uuid4().hex
+            pipe = self.video_socket if script == 'dashboard.py' else r'\\.\pipe\race-calibration-' + uuid.uuid4().hex
             self.log = open(BASE/'analysis-log.txt','w',encoding='utf-8')
             command = [sys.executable,str(BASE/script),'--race',str(race),'--video',str(video),'--socket',pipe]
+            if script == 'dashboard.py':
+                from expression_editor import save_json
+                save_json(self.sync_state,dict(slope=slope,offset=offset,adjustment=0))
+                command.extend(['--sync-state',str(self.sync_state)])
             if script == 'dashboard.py' and self.track.get().strip():
                 command.extend(['--track', str(Path(self.track.get()).resolve())])
             self.child = subprocess.Popen(command,cwd=BASE,env=env,stdout=self.log,stderr=self.log)
-            self.status.set('Close the calibration or dashboard window to return here.')
-            for b in self.buttons: b.state(['disabled'])
+            self.refresh_controls()
             self.root.after(300,self.poll)
         except Exception as e:
             if self.log: self.log.close(); self.log=None
@@ -165,18 +239,18 @@ class Launcher:
             self.root.after(300,self.poll)
             return
         self.log.close(); self.log=None; self.child=None
-        for b in self.buttons: b.state(['!disabled'])
-        self.status.set('Ready. Choose calibration or dashboard.')
+        self.refresh_controls()
         if code:
             detail=(BASE/'analysis-log.txt').read_text(encoding='utf-8',errors='replace')
             messagebox.showerror('Analysis stopped', detail[-2500:] or 'See analysis-log.txt.',parent=self.root)
 
     def close(self):
-        if self.child and self.child.poll() is None:
-            messagebox.showinfo('Close analysis first','Close the calibration or dashboard window first, then close this launcher.',parent=self.root)
+        if self.running():
+            messagebox.showinfo('Close analysis first','Close the open analysis windows first, then close this launcher.',parent=self.root)
             return
         try: self.save()
         except OSError: pass
+        self.sync_state.unlink(missing_ok=True)
         self.root.destroy()
 
 if __name__ == '__main__':
