@@ -15,8 +15,9 @@ MODES = ['Entire recording','Engine running','Race running','Lap','Segment of la
 
 
 class StatisticsScreen:
-    def __init__(self,root,session):
+    def __init__(self,root,session,link=None):
         self.root=root; self.session=session
+        self.link=link; self.result=None; self.cursor=None; self.video_time=None
         root.title('Race Statistics — '+session.filename.name); root.geometry('1100x830'); root.minsize(950,700)
         frame=ttk.Frame(root,padding=12); frame.pack(fill='both',expand=True)
         self.editor=ExpressionEditor(frame,session.evaluator); self.editor.pack(fill='x')
@@ -49,7 +50,15 @@ class StatisticsScreen:
         ttk.Label(frame,textvariable=self.summary,font=('TkDefaultFont',11),wraplength=1050).pack(fill='x',pady=8)
         self.figure=Figure(figsize=(10,4),dpi=100); self.axes=self.figure.add_subplot()
         self.canvas=FigureCanvasTkAgg(self.figure,master=frame); self.canvas.get_tk_widget().pack(fill='both',expand=True)
-        NavigationToolbar2Tk(self.canvas,frame)
+        self.toolbar=NavigationToolbar2Tk(self.canvas,frame)
+        navigation=ttk.Frame(frame); navigation.pack(fill='x')
+        self.link_status=tk.StringVar(value='Open Dashboard and start its video to link playback.' if link else 'Video linking is available when opened from the launcher.')
+        ttk.Label(navigation,textvariable=self.link_status).pack(side='left')
+        for label,key in [('Go to Min','minimum_time'),('Go to Max','maximum_time')]:
+            ttk.Button(navigation,text=label,command=lambda k=key:self.go_extreme(k)).pack(side='right',padx=5)
+        self.canvas.mpl_connect('button_press_event',self.graph_click)
+        root.protocol('WM_DELETE_WINDOW',self.close)
+        if link: root.after(200,self.follow_video)
         self.change_mode()
 
     def change_mode(self):
@@ -99,19 +108,61 @@ class StatisticsScreen:
             if len(selected_times)>1: self.axes.set_xlim(selected_times[0],selected_times[-1])
             self.axes.set_xlabel('Recording time (seconds)'); self.axes.set_ylabel(item['units'] or 'Value')
             self.axes.set_title(item['expression']+' — '+mode); self.axes.grid(True,alpha=.25)
+            self.result=result; self.cursor=None
             self.figure.tight_layout(); self.canvas.draw()
         except (ValueError,OSError,KeyError) as exc:
+            self.result=None; self.cursor=None
             self.summary.set('No current result — '+str(exc)); self.axes.clear(); self.canvas.draw()
             messagebox.showerror('Cannot evaluate',str(exc),parent=self.root)
 
 
+    def close(self):
+        if self.link: self.link.close()
+        self.root.destroy()
+
+    def follow_video(self):
+        try:
+            self.video_time=self.link.current()
+            if self.video_time is not None:
+                self.link_status.set(f'Video at recording {self.video_time:.3f} s — click graph to seek')
+                if self.result:
+                    if self.cursor is None: self.cursor=self.axes.axvline(self.video_time,color='red',linewidth=1)
+                    else: self.cursor.set_xdata([self.video_time,self.video_time])
+                    low,high=self.axes.get_xlim(); self.cursor.set_visible(low <= self.video_time <= high)
+                    self.canvas.draw_idle()
+        except (OSError,ValueError,KeyError,ConnectionError):
+            self.video_time=None; self.link.close()
+            self.link_status.set('Open Dashboard and start its video to link playback.')
+            if self.cursor is not None: self.cursor.set_visible(False); self.canvas.draw_idle()
+        self.root.after(200,self.follow_video)
+
+    def seek(self,time):
+        if not self.link:
+            self.link_status.set('Open Statistics from the launcher to link video.'); return
+        try:
+            if not self.link.seek(time): raise ValueError('Video seek failed.')
+        except (OSError,ValueError,KeyError,ConnectionError) as exc:
+            self.link.close(); self.link_status.set('Cannot seek: '+str(exc))
+
+    def graph_click(self,event):
+        if event.button == 1 and event.inaxes is self.axes and event.xdata is not None and not self.toolbar.mode:
+            self.seek(float(event.xdata))
+
+    def go_extreme(self,key):
+        if self.result: self.seek(self.result[key])
+        else: self.link_status.set('Evaluate an expression first.')
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__); parser.add_argument('--race',required=True); parser.add_argument('--track')
+    parser.add_argument('--socket'); parser.add_argument('--sync-state')
     args=parser.parse_args(); root=tk.Tk(); root.withdraw()
     try:
         session=Session(args.race)
         if args.track: session.load_track(args.track)
-        StatisticsScreen(root,session); root.deiconify(); root.mainloop()
+        from video_link import VideoLink
+        link=VideoLink(args.socket,args.sync_state) if args.socket and args.sync_state else None
+        StatisticsScreen(root,session,link); root.deiconify(); root.mainloop()
     except (ValueError,OSError,KeyError) as exc:
         messagebox.showerror('Cannot open statistics',str(exc),parent=root); root.destroy(); raise SystemExit(2)
 

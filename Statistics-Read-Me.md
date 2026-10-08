@@ -31,6 +31,6 @@ Open **Session Information** in the launcher to read every metadata field suppli
 
 ## Watching video while using statistics
 
-Open Statistics and Dashboard from the same launcher, in either order. Start the video from Dashboard. Both windows stay open, and closing either one leaves the other running. Session Information can also remain open. Each screen's expression/interval changes take effect when you click Evaluate; the statistics plot does not yet track the moving video position or seek it.
+Open Statistics and Dashboard from the same launcher, in either order. Start the video from Dashboard. Both windows stay open, and closing either one leaves the other running. Session Information can also remain open. Each screen's expression/interval changes take effect when you click Evaluate; the graph shows a red cursor at the current recording time. Click the graph to seek the video, or use Go to Min / Go to Max after evaluating. Seeking preserves the current play/pause state. While the toolbar pan or zoom tool is active, clicks operate the plot instead of seeking. Playback outside the plotted interval hides the cursor. Dashboard sync adjustments apply to statistics too.
 
 File selections remain locked until all analysis windows close, so the open screens use the same recording. Calibration and Dashboard are mutually exclusive. Close windows with their title-bar X; redundant Done buttons have been removed. In the segment editor, SAVE SECTIONS remains the explicit save action; closing that window does not save unsaved edits.

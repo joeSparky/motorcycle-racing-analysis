@@ -12,7 +12,7 @@ class LauncherWindowTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory(); self.base=Path(self.temp.name)
         self.base_patch=patch.object(launcher,'BASE',self.base); self.base_patch.start()
         self.app=launcher.Launcher.__new__(launcher.Launcher)
-        a=self.app; a.root=Mock(); a.child=None; a.log=None; a.csv_children={}; a.status=Mock()
+        a=self.app; a.video_socket='test-pipe'; a.sync_state=self.base/'link.json'; a.root=Mock(); a.child=None; a.log=None; a.csv_children={}; a.status=Mock()
         a.buttons=[Mock(),Mock()]; a.csv_buttons={'statisticsScreen.py':Mock(),'sessionInfo.py':Mock()}; a.file_controls=[Mock()]
         race=self.base/'race.csv'; video=self.base/'video.mp4'; mpv=self.base/'mpv.exe'
         for path in (race,video,mpv): path.touch()

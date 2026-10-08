@@ -138,6 +138,7 @@ class Dashboard:
         self.slope = float(calibration["slope"])
         self.offset = float(calibration["offset"])
         self.sync_adjustment = 0.0
+        self.sync_state = None
         self.mpv = MpvConnection(socket_path)
         self.socket_path = socket_path
         self.video_path = video_path
@@ -417,14 +418,21 @@ class Dashboard:
         self.mpv.command("set_property", "pause", False)
         return True
 
+    def publish_sync(self):
+        if self.sync_state:
+            from expression_editor import save_json
+            save_json(self.sync_state,dict(slope=self.slope,offset=self.offset,adjustment=self.sync_adjustment))
+
     def adjust_sync(self, amount):
         # Positive adjustment puts video ahead of dashboard data.
         self.sync_adjustment = round(self.sync_adjustment + amount, 1)
         self.sync_label.config(text=f"{self.sync_adjustment:+.1f} s")
+        self.publish_sync()
 
     def reset_sync(self):
         self.sync_adjustment = 0.0
         self.sync_label.config(text="+0.0 s")
+        self.publish_sync()
 
     def close(self):
         if self.segment_process is not None and self.segment_process.poll() is None:
@@ -668,6 +676,7 @@ def main():
     parser = argparse.ArgumentParser(description="Configurable race video dashboard.")
     parser.add_argument("--race", help="Override $race.")
     parser.add_argument("--video", help="Override $video.")
+    parser.add_argument("--sync-state", help="Shared statistics video mapping")
     parser.add_argument("--config", help="Dashboard YAML file.")
     parser.add_argument("--track", help="Prepared track project with saved segments")
     parser.add_argument("--socket", default=DEFAULT_PIPE)
@@ -714,6 +723,8 @@ def main():
         root, race_data, calibration, args.socket,
         video_path, config, args.track
     )
+    dashboard.sync_state = Path(args.sync_state) if args.sync_state else None
+    dashboard.publish_sync()
     dashboard.config_path = config_path
     root.mainloop()
 

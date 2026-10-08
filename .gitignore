@@ -34,3 +34,5 @@ expressions.json
 # Independent analysis windows
 statisticsScreen-log.txt
 sessionInfo-log.txt
+
+video-link-*.json

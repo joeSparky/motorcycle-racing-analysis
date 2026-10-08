@@ -19,6 +19,8 @@ class Launcher:
         self.log = None
         self.csv_children = {}
         self.csv_buttons = {}
+        self.video_socket = r"\\.\pipe\race-statistics-" + uuid.uuid4().hex
+        self.sync_state = BASE/("video-link-" + uuid.uuid4().hex + ".json")
         root.title("Steve's Race Analysis")
         root.geometry('850x490')
         root.minsize(760, 380)
@@ -143,6 +145,8 @@ class Launcher:
             if not race.is_file():
                 raise ValueError('Choose an existing original AIM race CSV first.')
             command = [sys.executable, str(BASE/script), '--race', str(race)]
+            if script == 'statisticsScreen.py':
+                command.extend(['--socket',self.video_socket,'--sync-state',str(self.sync_state)])
             if script == 'statisticsScreen.py' and self.track.get().strip():
                 command.extend(['--track', str(Path(self.track.get()).resolve())])
             self.save()
@@ -213,9 +217,13 @@ class Launcher:
             env = os.environ.copy()
             env['MPV_EXE'] = settings['mpv']
             env['PYTHONIOENCODING'] = 'utf-8'
-            pipe = '\\\\.\\pipe\\race-analysis-' + uuid.uuid4().hex
+            pipe = self.video_socket if script == 'dashboard.py' else r'\\.\pipe\race-calibration-' + uuid.uuid4().hex
             self.log = open(BASE/'analysis-log.txt','w',encoding='utf-8')
             command = [sys.executable,str(BASE/script),'--race',str(race),'--video',str(video),'--socket',pipe]
+            if script == 'dashboard.py':
+                from expression_editor import save_json
+                save_json(self.sync_state,dict(slope=slope,offset=offset,adjustment=0))
+                command.extend(['--sync-state',str(self.sync_state)])
             if script == 'dashboard.py' and self.track.get().strip():
                 command.extend(['--track', str(Path(self.track.get()).resolve())])
             self.child = subprocess.Popen(command,cwd=BASE,env=env,stdout=self.log,stderr=self.log)
@@ -242,6 +250,7 @@ class Launcher:
             return
         try: self.save()
         except OSError: pass
+        self.sync_state.unlink(missing_ok=True)
         self.root.destroy()
 
 if __name__ == '__main__':
