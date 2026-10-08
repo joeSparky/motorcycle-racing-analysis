@@ -45,4 +45,4 @@ With a prepared Track project selected in the launcher, starting the Dashboard v
 
 Close the map independently with its X. Click Track map on Dashboard to reopen it or select a prepared track if none was chosen. Closing Dashboard closes its map and video; Statistics remains independent. No aerial imagery is required.
 
-Saved segment starts are marked with blue squares and numbered in start-position order, matching the Statistics segment dropdown. Each label marks where that segment begins. Segment 1 at position zero shares the Start / finish marker. Boundaries are interpolated on the prepared track reference; maps without saved segments still show the outline and start/finish.
+Saved segment starts are marked with blue squares and labeled with their TrackPosition values, matching the Start position and End position fields for Segment of lap in Statistics. Each label marks where that segment begins. Position zero shares the Start / finish marker. Boundaries are interpolated on the prepared track reference; maps without saved segments still show the outline and start/finish.

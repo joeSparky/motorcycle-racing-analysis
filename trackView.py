@@ -63,14 +63,14 @@ class TrackView:
         self.canvas.create_rectangle(x-4,y-4,x+4,y+4,fill='#111827',outline='')
         start_label='Start / finish'
         if self.segment_points and self.segment_points[0][1] == 0:
-            start_label+=' • Segment 1'
+            start_label+=' • 0'
         self.canvas.create_text(x+8,y-12,text=start_label,anchor='w',fill='#475569')
         for number,position,point in self.segment_points:
             if position == 0: continue
             sx,sy=self.transform(point)
             self.canvas.create_rectangle(sx-4,sy-4,sx+4,sy+4,fill='#2563eb',outline='white')
             dx=10 if sx < width/2 else -10
-            label=self.canvas.create_text(sx+dx,sy-12,text=f'Segment {number}',anchor='w' if dx > 0 else 'e',fill='#1d4ed8')
+            label=self.canvas.create_text(sx+dx,sy-12,text=f'{position:g}',anchor='w' if dx > 0 else 'e',fill='#1d4ed8')
             bounds=self.canvas.bbox(label)
             background=self.canvas.create_rectangle(bounds,fill='white',outline='')
             self.canvas.tag_lower(background,label)
