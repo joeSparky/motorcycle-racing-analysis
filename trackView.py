@@ -17,10 +17,27 @@ def recorded_position(row, geometry):
     return float(point[0]),float(point[1])
 
 
+def segment_markers(geometry):
+    """Number saved segments in start-position order, as in Statistics."""
+    sections=sorted(geometry['config'].get('sections',[]),key=lambda s:s['start'])
+    divisions=geometry['config']['divisions']
+    markers=[]
+    for number,section in enumerate(sections,1):
+        position=float(section['start'])
+        if not math.isfinite(position) or not 0 <= position < divisions:
+            raise ValueError('Segment start is outside the track position scale.')
+        index=max(0,int(np.searchsorted(geometry['positions'],position,side='right'))-1)
+        fraction=np.clip((position-geometry['positions'][index])/geometry['spans'][index],0,1)
+        point=geometry['starts'][index]+fraction*geometry['vectors'][index]
+        markers.append((number,position,point))
+    return markers
+
+
 class TrackView:
     def __init__(self,parent,path):
         self.geometry=track.load_track(path)
         self.points=(self.geometry['points']-self.geometry['origin'])*self.geometry['scale']
+        self.segment_points=segment_markers(self.geometry)
         self.window=tk.Toplevel(parent)
         self.window.title('Track Position — '+str(self.geometry['config'].get('track',path.stem)))
         self.window.geometry('620x620'); self.window.minsize(320,320)
@@ -44,7 +61,19 @@ class TrackView:
         self.canvas.create_line(*coords,fill='#64748b',width=3)
         x,y=self.transform(self.points[0])
         self.canvas.create_rectangle(x-4,y-4,x+4,y+4,fill='#111827',outline='')
-        self.canvas.create_text(x+8,y-12,text='Start / finish',anchor='w',fill='#475569')
+        start_label='Start / finish'
+        if self.segment_points and self.segment_points[0][1] == 0:
+            start_label+=' • Segment 1'
+        self.canvas.create_text(x+8,y-12,text=start_label,anchor='w',fill='#475569')
+        for number,position,point in self.segment_points:
+            if position == 0: continue
+            sx,sy=self.transform(point)
+            self.canvas.create_rectangle(sx-4,sy-4,sx+4,sy+4,fill='#2563eb',outline='white')
+            dx=10 if sx < width/2 else -10
+            label=self.canvas.create_text(sx+dx,sy-12,text=f'Segment {number}',anchor='w' if dx > 0 else 'e',fill='#1d4ed8')
+            bounds=self.canvas.bbox(label)
+            background=self.canvas.create_rectangle(bounds,fill='white',outline='')
+            self.canvas.tag_lower(background,label)
         self.canvas.create_text(25,20,text='N ↑',anchor='w',fill='#475569')
         self.dot=self.canvas.create_oval(0,0,0,0,fill='#dc2626',outline='white',width=2,state='hidden')
         self.place_dot()
