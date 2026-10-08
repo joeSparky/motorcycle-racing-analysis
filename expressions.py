@@ -6,6 +6,8 @@ import re
 
 
 class ExpressionEvaluator:
+    FUNCTIONS = {"atan": math.atan, "degrees": math.degrees, "abs": abs}
+
     BIN = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
            ast.Div: operator.truediv, ast.Mod: operator.mod, ast.Pow: operator.pow}
     CMP = {ast.Lt: operator.lt, ast.LtE: operator.le, ast.Gt: operator.gt,
@@ -29,7 +31,7 @@ class ExpressionEvaluator:
         prepared = re.sub(r'\[([^\]]+)\]', lambda m: field(m[1]), expression)
         # One substitution pass avoids substituting generated variable names.
         prepared = re.sub(r'\b[A-Za-z_][A-Za-z0-9_]*\b',
-                          lambda m: field(m[0]) if m[0] in self.fields else m[0], prepared)
+                          lambda m: field(m[0]) if m[0] in self.fields and m[0] not in self.FUNCTIONS else m[0], prepared)
         return prepared, variables
 
     def compile(self, expression):
@@ -44,12 +46,19 @@ class ExpressionEvaluator:
         if len(nodes) > 150:
             raise ValueError('Expression is too complex.')
         allowed = (ast.Expression, ast.BinOp, ast.UnaryOp, ast.Compare, ast.Name,
-                   ast.Load, ast.Constant, ast.UAdd, ast.USub, *self.BIN, *self.CMP)
+                   ast.Load, ast.Constant, ast.Call, ast.UAdd, ast.USub, *self.BIN, *self.CMP)
+        function_names = {id(n.func) for n in nodes if isinstance(n, ast.Call)}
         for node in nodes:
             if not isinstance(node, allowed):
-                raise ValueError('Use arithmetic, comparisons, parentheses and CSV columns only.')
-            if isinstance(node, ast.Name) and node.id not in variables:
+                raise ValueError('Use arithmetic, comparisons, CSV columns, atan(), degrees() and abs() only.')
+            if isinstance(node, ast.Call):
+                if (not isinstance(node.func, ast.Name) or node.func.id not in self.FUNCTIONS
+                        or len(node.args) != 1 or node.keywords):
+                    raise ValueError('Supported functions are atan(), degrees() and abs(), each with one argument.')
+            if isinstance(node, ast.Name) and node.id not in variables and node.id not in self.FUNCTIONS:
                 raise ValueError(f'Unknown name: {node.id}. Use [brackets] for channel names with spaces.')
+            if isinstance(node, ast.Name) and node.id in self.FUNCTIONS and id(node) not in function_names:
+                raise ValueError('Functions must be called with one argument.')
             if isinstance(node, ast.Constant) and (type(node.value) not in (int, float) or abs(node.value) > 1e308):
                 raise ValueError('Only finite numeric constants are allowed.')
         result = (tree.body, variables)
@@ -62,7 +71,14 @@ class ExpressionEvaluator:
             if isinstance(node, ast.Constant):
                 return float(node.value)
             if isinstance(node, ast.Name):
+                if node.id not in variables:
+                    raise ValueError('Functions must be called with one argument')
                 return float(row[variables[node.id]])
+            if isinstance(node, ast.Call):
+                value = visit(node.args[0])
+                if not math.isfinite(value):
+                    raise ValueError('Nonfinite operand')
+                return self.FUNCTIONS[node.func.id](value)
             if isinstance(node, ast.UnaryOp):
                 value = visit(node.operand)
                 return -value if isinstance(node.op, ast.USub) else value

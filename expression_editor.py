@@ -15,6 +15,17 @@ def save_json(path, value):
     temp.replace(path)
 
 
+def available_expressions(fields, saved):
+    """Offer built-in formulas without overwriting the user's saved choices."""
+    result = {}
+    if 'GPS LatAcc' in fields:
+        result['Estimated lean angle'] = dict(
+            expression='degrees(atan([GPS LatAcc]))', label='Estimated lean angle',
+            units='deg', decimals=1, bin_width=5)
+    result.update(saved)
+    return result
+
+
 class ExpressionEditor(ttk.LabelFrame):
     def __init__(self, parent, evaluator):
         super().__init__(parent, text='Expression', padding=8)
@@ -24,6 +35,7 @@ class ExpressionEditor(ttk.LabelFrame):
             self.saved = json.loads(self.path.read_text(encoding='utf-8'))
         except FileNotFoundError:
             self.saved = {}
+        self.saved = available_expressions(evaluator.fields, self.saved)
         self.name = tk.StringVar(value='RPM')
         self.expression = tk.StringVar(value='RPM')
         self.units = tk.StringVar()
@@ -45,7 +57,7 @@ class ExpressionEditor(ttk.LabelFrame):
         for label,var in [('Units',self.units),('Decimals',self.decimals),('Histogram bin width',self.bin_width)]:
             ttk.Label(settings,text=label).pack(side='left',padx=4)
             ttk.Entry(settings,textvariable=var,width=9).pack(side='left')
-        ttk.Label(self,text='Use [GPS Speed] for channel names with spaces. Operators: + − * / % ** and comparisons. Histogram width 0 = automatic bins.').grid(row=4,column=0,columnspan=3,sticky='w')
+        ttk.Label(self,text='Use [GPS Speed] for channel names with spaces. Operators: + − * / % ** and comparisons; atan(), degrees(), abs(). Histogram width 0 = automatic bins.').grid(row=4,column=0,columnspan=3,sticky='w')
         if self.saved:
             self.name.set(next(iter(self.saved))); self.load(self.saved[self.name.get()])
         elif 'RPM' not in evaluator.fields:
