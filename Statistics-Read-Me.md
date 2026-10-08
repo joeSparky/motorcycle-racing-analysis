@@ -2,7 +2,7 @@
 
 Open **Statistics** from Race-Analysis.cmd. Select an original AIM CSV in the launcher; no video, MPV setup or calibration is needed. A prepared track project is needed only for track-position segments. Clear the track selection to analyze a recording without track geometry.
 
-On the statistics screen, enter a formula, choose the interval and click **Evaluate**. For example, `RPM / Speed` or `RPM / [GPS Speed]`. These use the CSV's original units; the Units box is a label, not a conversion. Comparisons such as `Throttle > 90` return 1 or 0, so their mean is the fraction of valid selected samples meeting the condition. Arithmetic, parentheses and comparisons are supported; Python functions and arbitrary code are not.
+On the statistics screen, enter a formula, choose the interval and click **Evaluate**. For example, `RPM / Speed` or `RPM / [GPS Speed]`. These use the CSV's original units; the Units box is a label, not a conversion. Comparisons such as `Throttle > 90` return 1 or 0, so their mean is the fraction of valid selected samples meeting the condition. Arithmetic, parentheses and comparisons are supported; The functions `atan()`, `degrees()` and `abs()` are supported, each with one argument; arbitrary Python code is not.
 
 Choose a saved name and click **Save expression** to reuse a formula, units, decimal precision and histogram-bin width. Saved expressions are local to this installation in expressions.json.
 
@@ -46,3 +46,11 @@ With a prepared Track project selected in the launcher, starting the Dashboard v
 Close the map independently with its X. Click Track map on Dashboard to reopen it or select a prepared track if none was chosen. Closing Dashboard closes its map and video; Statistics remains independent. No aerial imagery is required.
 
 Saved segment starts are marked with blue squares and labeled with their TrackPosition values, matching the Start position and End position fields for Segment of lap in Statistics. Each label marks where that segment begins. Position zero shares the Start / finish marker. Boundaries are interpolated on the prepared track reference; maps without saved segments still show the outline and start/finish.
+
+## Estimated lean angle
+
+When the CSV contains GPS LatAcc, the saved-expression dropdown includes **Estimated lean angle**: `degrees(atan([GPS LatAcc]))`. Select it in Statistics and click Evaluate, or choose it for a dashboard gauge and click Apply and save gauges. Suggested bar bounds are -60 to 60 degrees. The built-in preset uses one decimal place and 5-degree histogram bins. Existing expressions with that name take precedence.
+
+GPS LatAcc must be in g. The Units field labels the result; it does not convert the input. The estimate assumes steady balanced cornering on a level surface and represents the combined bike/rider lean. Body position, banking, bumps, transitions and GPS noise can make actual motorcycle lean different. It is not a direct measurement or a tire grip limit. This version uses the original samples without smoothing.
+
+For magnitude regardless of turn direction, use `abs(degrees(atan([GPS LatAcc])))`. One g gives 45 degrees; 0.5 g gives about 26.6 degrees. Negative and positive values preserve the original channel's turn direction. The preset is available without saving; Save expression stores your edits locally as usual.
