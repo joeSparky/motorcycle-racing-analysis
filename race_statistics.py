@@ -99,7 +99,9 @@ class Session:
                 dt = self.times[i]-self.times[i-1]
                 if dt <= 1.0:
                     area += dt*(values[i-1]/2 + values[i]/2); duration += dt
-        return dict(mean=statistics.mean(valid), median=statistics.median(valid), minimum=min(valid), maximum=max(valid),
+        minimum, maximum = min(valid), max(valid)
+        return dict(mean=statistics.mean(valid), median=statistics.median(valid), minimum=minimum, maximum=maximum,
+                    minimum_time=self.times[values.index(minimum)], maximum_time=self.times[values.index(maximum)],
                     modes=modes, mode_count=frequency, bin_width=bin_width, valid=len(valid), omitted=sum(mask)-len(valid),
                     selected=sum(mask), weighted_mean=area/duration if duration else None, weighted_duration=duration,
                     values=values)

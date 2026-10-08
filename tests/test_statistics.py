@@ -104,6 +104,30 @@ class StatisticsTests(unittest.TestCase):
         self.assertEqual(len(session.select('Segment of lap',lap=1,position_start=0,position_end=10000)),5)
         self.assertEqual(len(session.rows),5)
 
+    def test_extrema_times_are_first_selected_occurrences(self):
+        session=self.session
+        result=session.calculate('RPM',[True]*5)
+        self.assertEqual(result['minimum_time'],0)
+        self.assertEqual(result['maximum_time'],4)
+        result=session.calculate('RPM',[False,True,True,True,False])
+        self.assertEqual(result['minimum_time'],3)
+        self.assertEqual(result['maximum_time'],2)
+        result=session.calculate('RPM/Speed',[True]*5)
+        self.assertEqual(result['minimum_time'],1)
+        self.assertEqual(result['maximum_time'],4)
+
+    def test_metadata_preserves_comments_and_repeated_fields(self):
+        from sessionInfo import read_metadata
+        path=Path(self.temp.name)/'comments.csv'
+        path.write_text(CSV.replace('"Track","Test"',
+            '\"Track\",\"Test\"\n\"Comment\",\"first line\nsecond line\"\n\"Comment\",\"another comment\"\n\"Empty\",\"\"'))
+        metadata=read_metadata(path)
+        self.assertIn(('Track','Test'),metadata)
+        self.assertIn(('Comment','first line\nsecond line'),metadata)
+        self.assertIn(('Comment','another comment'),metadata)
+        self.assertIn(('Empty',''),metadata)
+        self.assertNotIn(('Time','RPM, Speed, Throttle'),metadata)
+
     def test_nonincreasing_time_rejected(self):
         path=Path(self.temp.name)/'bad.csv'; path.write_text(CSV.replace('2,2000','1,2000'))
         with self.assertRaises(ValueError): Session(path)

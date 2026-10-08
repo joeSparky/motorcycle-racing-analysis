@@ -18,7 +18,7 @@ class Launcher:
         self.child = None
         self.log = None
         root.title("Steve's Race Analysis")
-        root.geometry('850x450')
+        root.geometry('850x490')
         root.minsize(760, 380)
         self.race = tk.StringVar()
         self.video = tk.StringVar()
@@ -56,8 +56,11 @@ class Launcher:
         editor_button = ttk.Button(buttons, text='Edit Segments', command=self.edit_segments)
         editor_button.pack(side='left', padx=(0,12))
         self.buttons.append(editor_button)
-        ttk.Label(frame, text='New recording: calibrate first. Saved calibration: open the dashboard directly.', wraplength=690).grid(row=5, column=0, columnspan=3, sticky='w')
-        ttk.Label(frame, textvariable=self.status, wraplength=690).grid(row=6, column=0, columnspan=3, sticky='w', pady=(16,0))
+        metadata_button = ttk.Button(frame, text='Session Information', command=lambda:self.open_csv_screen('sessionInfo.py'))
+        metadata_button.grid(row=5,column=0,columnspan=3,sticky='w',pady=(0,8))
+        self.buttons.append(metadata_button)
+        ttk.Label(frame, text='New recording: calibrate first. Saved calibration: open the dashboard directly.', wraplength=690).grid(row=6, column=0, columnspan=3, sticky='w')
+        ttk.Label(frame, textvariable=self.status, wraplength=690).grid(row=7, column=0, columnspan=3, sticky='w', pady=(16,0))
         root.protocol('WM_DELETE_WINDOW', self.close)
 
     def choose(self, var):
@@ -125,25 +128,29 @@ class Launcher:
             messagebox.showerror('Cannot open segment editor', str(exc), parent=self.root)
 
     def open_statistics(self):
+        self.open_csv_screen('statisticsScreen.py')
+
+    def open_csv_screen(self, script):
         if self.child and self.child.poll() is None:
             return
         try:
             race = Path(self.race.get()).resolve()
             if not race.is_file():
                 raise ValueError('Choose an existing original AIM race CSV first.')
-            command = [sys.executable, str(BASE/'statisticsScreen.py'), '--race', str(race)]
-            if self.track.get().strip():
+            command = [sys.executable, str(BASE/script), '--race', str(race)]
+            if script == 'statisticsScreen.py' and self.track.get().strip():
                 command.extend(['--track', str(Path(self.track.get()).resolve())])
             self.save()
             env = os.environ.copy(); env['PYTHONIOENCODING'] = 'utf-8'
             self.log = open(BASE/'analysis-log.txt', 'w', encoding='utf-8')
             self.child = subprocess.Popen(command, cwd=BASE, env=env, stdout=self.log, stderr=self.log)
             for button in self.buttons: button.state(['disabled'])
-            self.status.set('Close Statistics to return here.')
+            title = 'Statistics' if script == 'statisticsScreen.py' else 'Session Information'
+            self.status.set(f'Close {title} to return here.')
             self.root.after(300, self.poll)
         except Exception as exc:
             if self.log: self.log.close(); self.log = None
-            messagebox.showerror('Cannot open statistics', str(exc), parent=self.root)
+            messagebox.showerror('Cannot open CSV screen', str(exc), parent=self.root)
 
     def launch(self, script):
         try:

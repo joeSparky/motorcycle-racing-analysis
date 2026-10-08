@@ -85,18 +85,22 @@ def edit_dashboard(dashboard):
     choice.pack(fill='x',padx=12,pady=8); choice.current(0)
     editor = ExpressionEditor(window,dashboard.expression_evaluator); editor.pack(fill='x',padx=12,pady=8)
     limits = ttk.Frame(window); limits.pack(pady=5)
+    kind = tk.StringVar(value='number')
+    ttk.Label(limits,text='Display').pack(side='left',padx=5)
+    ttk.Combobox(limits,textvariable=kind,values=['number','bar'],state='readonly',width=9).pack(side='left')
     low = tk.StringVar(); high = tk.StringVar()
     for label,var in [('Gauge minimum',low),('Gauge maximum',high)]:
         ttk.Label(limits,text=label).pack(side='left',padx=5); ttk.Entry(limits,textvariable=var,width=10).pack(side='left')
     def load():
         item=items[choice.current()]; editor.load(item); editor.name.set(item.get('label','Gauge'))
+        kind.set(item.get('type','number').lower())
         low.set(str(item.get('min',0))); high.set(str(item.get('max',100)))
     choice.bind('<<ComboboxSelected>>',lambda e:load()); load()
     def apply():
         try:
             item = editor.get(); a,b = float(low.get()),float(high.get())
             if not math.isfinite(a) or not math.isfinite(b) or a >= b: raise ValueError('Gauge minimum must be less than maximum.')
-            item.update(min=a,max=b)
+            item.update(min=a,max=b,type=kind.get())
             updated = dict(items[choice.current()])
             # The edited expression produces the display units directly.
             for key in ('channel','conversion','scale','offset'): updated.pop(key,None)

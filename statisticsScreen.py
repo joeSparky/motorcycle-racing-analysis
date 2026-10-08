@@ -88,7 +88,7 @@ class StatisticsScreen:
                 mode_text=', '.join(mode_label(v) for v in result['modes'][:5])
                 if len(result['modes'])>5: mode_text+=f' (+{len(result["modes"])-5} tied modes)'
                 mode_text+=f' ({result["mode_count"]} samples each)'
-            self.summary.set(f'Mean: {fmt(result["mean"])}   Median: {fmt(result["median"])}   Min: {fmt(result["minimum"])}   Max: {fmt(result["maximum"])} {item["units"]}\n'
+            self.summary.set(f'Mean: {fmt(result["mean"])}   Median: {fmt(result["median"])}   Min: {fmt(result["minimum"])} at {result["minimum_time"]:.3f} s   Max: {fmt(result["maximum"])} at {result["maximum_time"]:.3f} s {item["units"]}\n'
                 f'Mode: {mode_text}\nValid: {result["valid"]:,}   Omitted: {result["omitted"]:,}   Selected: {result["selected"]:,}   '
                 f'Time-weighted mean: {fmt(result["weighted_mean"])} (over {result["weighted_duration"]:.3f} s; trapezoids, gaps >1 s excluded)')
             x=[]; y=[]
