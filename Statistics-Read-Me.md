@@ -76,3 +76,7 @@ In Edit Segments / Track Section Editor, click Load points to open the same poin
 ## Selecting points in the launcher
 
 The main screen has an optional Interesting points file field. It is remembered with your race/video/track selections and automatically loaded by Dashboard's map and Edit Segments. Leave it blank to load points manually. Renaming the track does not invalidate points; track origin, position scale and reference geometry must still match. Tiny serialization rounding differences are tolerated. Errors now identify format, origin, scale or reference differences. If geometry differs, select the original track project used when creating the points rather than forcing them onto a different reference.
+
+## Going to a segment pass
+
+Best segment timing's Go to best segment and Go to selected pass buttons seek to the pass entry and leave MPV paused. Double-clicking a complete pass does the same. Use the usual playback controls when ready. The segment end remains active, so playback stops there or repeats if Repeat is selected; repeats play normally. Lap analysis's Play lap buttons still start playback immediately.

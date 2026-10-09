@@ -359,13 +359,13 @@ class Dashboard:
             selected = detail.selection()
             p = segment['best'] if best else current['passes'].get(selected[0]) if selected else None
             if not p or p['Complete'] != 'true':
-                messagebox.showinfo("Segment playback", "Select a complete pass to play.", parent=dialog)
+                messagebox.showinfo("Segment playback", "Select a complete pass to go to.", parent=dialog)
                 return
             self.play_lap({'number': p['Lap'], 'start': float(p['EntryTime']), 'end': float(p['ExitTime']),
-                'duration': float(p['IntervalTime']), 'label': f"Segment {segment['end']} — observed lap {p['Lap']}"})
+                'duration': float(p['IntervalTime']), 'pause_on_arrival': True, 'label': f"Segment {segment['end']} — observed lap {p['Lap']}"})
         buttons = tk.Frame(dialog);buttons.pack(pady=6)
-        tk.Button(buttons, text="Play best segment", command=lambda: play(True)).pack(side="left", padx=4)
-        tk.Button(buttons, text="Play selected pass", command=play).pack(side="left", padx=4)
+        tk.Button(buttons, text="Go to best segment", command=lambda: play(True)).pack(side="left", padx=4)
+        tk.Button(buttons, text="Go to selected pass", command=play).pack(side="left", padx=4)
         tk.Checkbutton(buttons, text="Repeat", variable=self.repeat_lap).pack(side="left", padx=4)
         tk.Label(dialog, text="Observed lap counts track-position-zero crossings; it may differ from the beacon lap list.").pack(pady=(0,6))
         summary.bind("<<TreeviewSelect>>", fill)
@@ -425,9 +425,12 @@ class Dashboard:
         if duration is not None and end > float(duration) + 0.1:
             messagebox.showwarning("Lap video", "The available video does not cover this complete lap.")
             return False
+        if lap.get('pause_on_arrival'):
+            if not self.mpv.command("set_property", "pause", True): return False
         if not self.mpv.command("seek", start, "absolute+exact"):
             return False
-        self.mpv.command("set_property", "pause", False)
+        if not lap.get('pause_on_arrival'):
+            self.mpv.command("set_property", "pause", False)
         return True
 
     def show_track_map(self, automatic=False):
@@ -696,7 +699,7 @@ class Dashboard:
             lap = self.active_lap
             if lap is not None and csv_target >= lap["end"]:
                 if self.repeat_lap.get():
-                    self.pending_lap = lap
+                    self.pending_lap = dict(lap, pause_on_arrival=False)
                 else:
                     self.mpv.command("set_property", "pause", True)
                     self.active_lap = None
