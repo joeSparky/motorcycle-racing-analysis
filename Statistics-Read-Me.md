@@ -41,7 +41,7 @@ In Edit gauges, Add Gauge creates a new entry. Enter its formula or choose a sav
 
 ## Track position during playback
 
-With a prepared Track project selected in the launcher, starting the Dashboard video also opens a track map. The red dot shows the nearest recorded GPS sample, using the same calibrated time and sync adjustment as the dashboard. Seeking, stepping and pausing update the dot. The outline is the prepared reference track; the black square is its position-zero start/finish reference. North is up, with equal horizontal and vertical distance scale. The dot uses actual recorded GPS coordinates, not a snapped position on the outline. Missing/invalid GPS, data gaps over half a second from the video time and video outside the recording hide the dot. Far-off-track locations can fall outside the map view.
+With a prepared Track project selected in the launcher, starting the Dashboard video also opens a track map. The red dot shows the nearest recorded GPS sample, using the same calibrated time and sync adjustment as the dashboard. Seeking, stepping and pausing update the dot. The outline is the prepared reference track; the black square is its position-zero start/finish reference. North is up, with equal horizontal and vertical distance scale. The dot uses actual recorded GPS coordinates, not a snapped position on the outline. Missing/invalid GPS, data gaps over half a second from the video time and video outside the recording hide the dot. Far-off-track locations retain their actual GPS coordinates. Use Fit track + Steve to bring a distant position into view.
 
 Close the map independently with its X. Click Track map on Dashboard to reopen it or select a prepared track if none was chosen. Closing Dashboard closes its map and video; Statistics remains independent. No aerial imagery is required.
 
@@ -54,3 +54,33 @@ When the CSV contains GPS LatAcc, the saved-expression dropdown includes **Estim
 GPS LatAcc must be in g. The Units field labels the result; it does not convert the input. The estimate assumes steady balanced cornering on a level surface and represents the combined bike/rider lean. Body position, banking, bumps, transitions and GPS noise can make actual motorcycle lean different. It is not a direct measurement or a tire grip limit. This version uses the original samples without smoothing.
 
 For magnitude regardless of turn direction, use `abs(degrees(atan([GPS LatAcc])))`. One g gives 45 degrees; 0.5 g gives about 26.6 degrees. Negative and positive values preserve the original channel's turn direction. The preset is available without saving; Save expression stores your edits locally as usual.
+
+## Zooming and panning the track map
+
+Use the mouse wheel to zoom around the pointer, and drag with the left mouse button to pan. Fit track returns to the whole reference track; Fit track + Steve includes the current valid GPS position, even far from the track. That button is disabled when no valid nearby GPS sample is available. These buttons fit once; playback does not automatically change your view. Resizing preserves the chosen center and distance scale. The map stays north up, and a distance scale in meters is shown at the bottom left. Zoom and pan do not edit the track or change Steve's coordinates.
+
+## Interesting points on the dashboard map
+
+Load points opens the JSON saved by interestingPoints.html. Entry points are green, apexes purple, and exits orange, with their names shown on the map. Show points hides or displays them. Files must match the prepared track reference, including its origin, divisions and nodes.
+
+Pause the video and enable Edit points (paused). Click Add point, then click the map; or click Place at Steve to create a point at his current valid GPS sample. Select an existing point by clicking its marker, then drag it, rename it with Apply name/type, delete it, or use Place at Steve to move it to his sample. Clicking empty space clears selection and allows panning. Point location changes stop if playback resumes. To create another point at Steve, first click empty space to clear selection.
+
+Save points writes a separate JSON compatible with the browser editor; the first save asks for a filename, later saves update that file. Cancel discards changes since the last load/save. Closing the map or dashboard prompts to save unsaved changes. Notes from existing files are preserved. The prepared track remains unchanged. Point editing requires a prepared track JSON, not the older YAML track format. Remember to load your points when reopening the map.
+
+## Landmark markers and section-editor references
+
+Interesting points now have four types: entry, apex, exit, and marker. Use marker for a tree, tar snake or another visual reference Steve uses for his line. Markers are amber. In the dashboard, select a point, choose marker in the type dropdown and click Apply name/type, then Save points. The browser editor also supports the new category; use the updated interestingPoints.html when opening files containing markers.
+
+In Edit Segments / Track Section Editor, click Load points to open the same points JSON. Show interesting points (read only) controls the overlay. Names and locations are displayed, but points cannot be edited or saved there. Clicking a point does not create or move a section boundary. Hide the overlay if a point obscures a boundary you want to edit. SAVE SECTIONS continues to save only the track's sections, leaving the separate points file unchanged.
+
+## Selecting points in the launcher
+
+The main screen has an optional Interesting points file field. It is remembered with your race/video/track selections and automatically loaded by Dashboard's map and Edit Segments. Leave it blank to load points manually. Renaming the track does not invalidate points; track origin, position scale and reference geometry must still match. Tiny serialization rounding differences are tolerated. Errors now identify format, origin, scale or reference differences. If geometry differs, select the original track project used when creating the points rather than forcing them onto a different reference.
+
+## Going to a segment pass
+
+Best segment timing's Go to best segment and Go to selected pass buttons seek to the pass entry and leave MPV paused. Double-clicking a complete pass does the same. Use the usual playback controls when ready. The segment end remains active, so playback stops there or repeats if Repeat is selected; repeats play normally. Lap analysis's Play lap buttons still start playback immediately.
+
+## Reference pictures for points
+
+On the dashboard map, pause the video, enable Edit points and select a point. Attach image accepts a screenshot or photograph (PNG, JPEG, BMP or WebP). You can annotate it beforehand with your preferred image editor. Pictures are converted to PNG, fitted within 1600 pixels and embedded in the points JSON. Input pictures must be smaller than 10 MB. Save points keeps the attachment; Cancel restores the previous saved picture. Remove image removes only the attachment. Notes are edited with Apply details. View image opens the reference picture and saved point notes; selecting and viewing a point also works outside edit mode during playback. Existing points without pictures remain supported, and the browser editor preserves the embedded picture when saving the file.

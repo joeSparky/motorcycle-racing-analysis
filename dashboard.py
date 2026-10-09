@@ -152,6 +152,7 @@ class Dashboard:
         self.lap_dialog = None
         self.track_path = Path(track_path) if track_path else None
         self.track_view = None
+        self.points_path = None
         self.segment_process = None
         self.segment_dialog = None
         self.segment_output = None
@@ -358,13 +359,13 @@ class Dashboard:
             selected = detail.selection()
             p = segment['best'] if best else current['passes'].get(selected[0]) if selected else None
             if not p or p['Complete'] != 'true':
-                messagebox.showinfo("Segment playback", "Select a complete pass to play.", parent=dialog)
+                messagebox.showinfo("Segment playback", "Select a complete pass to go to.", parent=dialog)
                 return
             self.play_lap({'number': p['Lap'], 'start': float(p['EntryTime']), 'end': float(p['ExitTime']),
-                'duration': float(p['IntervalTime']), 'label': f"Segment {segment['end']} — observed lap {p['Lap']}"})
+                'duration': float(p['IntervalTime']), 'pause_on_arrival': True, 'label': f"Segment {segment['end']} — observed lap {p['Lap']}"})
         buttons = tk.Frame(dialog);buttons.pack(pady=6)
-        tk.Button(buttons, text="Play best segment", command=lambda: play(True)).pack(side="left", padx=4)
-        tk.Button(buttons, text="Play selected pass", command=play).pack(side="left", padx=4)
+        tk.Button(buttons, text="Go to best segment", command=lambda: play(True)).pack(side="left", padx=4)
+        tk.Button(buttons, text="Go to selected pass", command=play).pack(side="left", padx=4)
         tk.Checkbutton(buttons, text="Repeat", variable=self.repeat_lap).pack(side="left", padx=4)
         tk.Label(dialog, text="Observed lap counts track-position-zero crossings; it may differ from the beacon lap list.").pack(pady=(0,6))
         summary.bind("<<TreeviewSelect>>", fill)
@@ -424,9 +425,12 @@ class Dashboard:
         if duration is not None and end > float(duration) + 0.1:
             messagebox.showwarning("Lap video", "The available video does not cover this complete lap.")
             return False
+        if lap.get('pause_on_arrival'):
+            if not self.mpv.command("set_property", "pause", True): return False
         if not self.mpv.command("seek", start, "absolute+exact"):
             return False
-        self.mpv.command("set_property", "pause", False)
+        if not lap.get('pause_on_arrival'):
+            self.mpv.command("set_property", "pause", False)
         return True
 
     def show_track_map(self, automatic=False):
@@ -441,7 +445,7 @@ class Dashboard:
             from trackView import TrackView
             if not {'GPS Latitude','GPS Longitude'}.issubset(self.race_data.fields):
                 raise ValueError('This recording has no GPS latitude/longitude channels.')
-            self.track_view=TrackView(self.root,self.track_path)
+            self.track_view=TrackView(self.root,self.track_path,is_paused=lambda:self.mpv.get_property("pause"),points_path=self.points_path)
         except (OSError,ValueError,KeyError) as exc:
             messagebox.showerror('Cannot open track map',str(exc),parent=self.root)
 
@@ -462,6 +466,9 @@ class Dashboard:
         self.publish_sync()
 
     def close(self):
+        if self.track_view is not None and self.track_view.exists():
+            self.track_view.close()
+            if self.track_view.exists(): return
         if self.segment_process is not None and self.segment_process.poll() is None:
             self.segment_process.terminate()
             try:
@@ -692,7 +699,7 @@ class Dashboard:
             lap = self.active_lap
             if lap is not None and csv_target >= lap["end"]:
                 if self.repeat_lap.get():
-                    self.pending_lap = lap
+                    self.pending_lap = dict(lap, pause_on_arrival=False)
                 else:
                     self.mpv.command("set_property", "pause", True)
                     self.active_lap = None
@@ -713,6 +720,7 @@ def main():
     parser.add_argument("--video", help="Override $video.")
     parser.add_argument("--sync-state", help="Shared statistics video mapping")
     parser.add_argument("--config", help="Dashboard YAML file.")
+    parser.add_argument("--points", help="Interesting points JSON")
     parser.add_argument("--track", help="Prepared track project with saved segments")
     parser.add_argument("--socket", default=DEFAULT_PIPE)
     args = parser.parse_args()
@@ -758,6 +766,7 @@ def main():
         root, race_data, calibration, args.socket,
         video_path, config, args.track
     )
+    dashboard.points_path = Path(args.points) if args.points else None
     dashboard.sync_state = Path(args.sync_state) if args.sync_state else None
     dashboard.publish_sync()
     dashboard.config_path = config_path

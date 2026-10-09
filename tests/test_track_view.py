@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from trackView import recorded_position, segment_markers
+from trackView import recorded_position, segment_markers, MapViewport
 
 class TrackViewTests(unittest.TestCase):
     def test_actual_position_in_local_track_coordinates(self):
@@ -24,3 +24,31 @@ class SegmentMarkerTests(unittest.TestCase):
         g['config']['sections']=[]; self.assertEqual(segment_markers(g),[])
 
 if __name__=='__main__': unittest.main()
+
+
+class ViewportTests(unittest.TestCase):
+    def test_zoom_preserves_pointer_location_and_equal_scale(self):
+        view=MapViewport(); view.fit([[0,0],[100,200]],620,500)
+        before=view.world(125,240,620,500)
+        original_scale=view.meters_per_pixel
+        view.zoom(1.25,125,240,620,500)
+        np.testing.assert_allclose(view.world(125,240,620,500),before)
+        self.assertAlmostEqual(view.meters_per_pixel,original_scale/1.25)
+        np.testing.assert_allclose(view.screen(before,620,500),[125,240])
+
+    def test_pan_and_zoom_limits(self):
+        view=MapViewport(); before=view.screen([0,0],620,500)
+        view.pan(70,-20)
+        np.testing.assert_allclose(np.array(view.screen([0,0],620,500))-before,[70,-20])
+        view.zoom(1e20,10,10,620,500); self.assertEqual(view.meters_per_pixel,.01)
+        view.zoom(1e-20,10,10,620,500); self.assertEqual(view.meters_per_pixel,1e7)
+
+    def test_fit_includes_distant_actual_position(self):
+        view=MapViewport(); points=[[0,0],[100,200],[5000,-4000]]
+        view.fit(points,620,500)
+        for point in points:
+            x,y=view.screen(point,620,500)
+            self.assertTrue(25 <= x <= 595)
+            self.assertTrue(25 <= y <= 475)
+        view.fit([[0,0]],1,1)
+        self.assertTrue(np.isfinite(view.meters_per_pixel))

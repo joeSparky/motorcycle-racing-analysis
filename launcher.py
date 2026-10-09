@@ -27,12 +27,14 @@ class Launcher:
         self.race = tk.StringVar()
         self.video = tk.StringVar()
         self.track = tk.StringVar()
+        self.points = tk.StringVar()
         self.status = tk.StringVar(value='Choose a race CSV and its helmet video.')
         try:
             saved = json.loads((BASE/'last-race.json').read_text(encoding='utf-8-sig'))
             self.race.set(saved.get('race', ''))
             self.video.set(saved.get('video', ''))
             self.track.set(saved.get('track', ''))
+            self.points.set(saved.get('points', ''))
         except (OSError, ValueError):
             pass
         frame = ttk.Frame(root, padding=20)
@@ -47,9 +49,12 @@ class Launcher:
         ttk.Label(frame, text='Track project').grid(row=3, column=0, sticky='w', padx=(0,10), pady=6)
         ttk.Entry(frame, textvariable=self.track).grid(row=3, column=1, sticky='ew')
         ttk.Button(frame, text='Browse...', command=lambda: self.choose(self.track)).grid(row=3, column=2, padx=(10,0))
+        ttk.Label(frame,text='Interesting points').grid(row=4,column=0,sticky='w',padx=(0,10),pady=6)
+        ttk.Entry(frame,textvariable=self.points).grid(row=4,column=1,sticky='ew')
+        ttk.Button(frame,text='Browse...',command=lambda:self.choose(self.points)).grid(row=4,column=2,padx=(10,0))
         self.file_controls = [w for w in frame.winfo_children() if isinstance(w, (ttk.Entry, ttk.Button))]
         buttons = ttk.Frame(frame)
-        buttons.grid(row=4, column=0, columnspan=3, sticky='w', pady=20)
+        buttons.grid(row=5, column=0, columnspan=3, sticky='w', pady=20)
         self.buttons = []
         for label, script in [('Calibrate Video', 'videoCalibration.py'), ('Open Dashboard', 'dashboard.py')]:
             b = ttk.Button(buttons, text=label, command=lambda s=script:self.launch(s))
@@ -62,10 +67,10 @@ class Launcher:
         editor_button.pack(side='left', padx=(0,12))
         self.buttons.append(editor_button)
         metadata_button = ttk.Button(frame, text='Session Information', command=lambda:self.open_csv_screen('sessionInfo.py'))
-        metadata_button.grid(row=5,column=0,columnspan=3,sticky='w',pady=(0,8))
+        metadata_button.grid(row=6,column=0,columnspan=3,sticky='w',pady=(0,8))
         self.csv_buttons['sessionInfo.py'] = metadata_button
-        ttk.Label(frame, text='New recording: calibrate first. Saved calibration: open the dashboard directly.', wraplength=690).grid(row=6, column=0, columnspan=3, sticky='w')
-        ttk.Label(frame, textvariable=self.status, wraplength=690).grid(row=7, column=0, columnspan=3, sticky='w', pady=(16,0))
+        ttk.Label(frame, text='New recording: calibrate first. Saved calibration: open the dashboard directly.', wraplength=690).grid(row=7, column=0, columnspan=3, sticky='w')
+        ttk.Label(frame, textvariable=self.status, wraplength=690).grid(row=8, column=0, columnspan=3, sticky='w', pady=(16,0))
         root.protocol('WM_DELETE_WINDOW', self.close)
 
     def choose(self, var):
@@ -74,6 +79,8 @@ class Launcher:
         types = [('CSV files','*.csv'),('All files','*.*')] if var is self.race else [('Video or saved timeline','*.mp4 *.mov *.mkv *.avi *.m4v *.edl'),('All files','*.*')]
         if var is self.track:
             types = [('Track project JSON','*.json'),('All files','*.*')]
+        if var is self.points:
+            types = [('Interesting points JSON','*.json'),('All files','*.*')]
         path = filedialog.askopenfilename(parent=self.root, filetypes=types)
         if path:
             var.set(path)
@@ -101,7 +108,7 @@ class Launcher:
             messagebox.showerror('Video pieces', str(e), parent=self.root)
 
     def save(self):
-        (BASE/'last-race.json').write_text(json.dumps({'race':self.race.get(),'video':self.video.get(),'track':self.track.get()},indent=2),encoding='utf-8')
+        (BASE/'last-race.json').write_text(json.dumps({'race':self.race.get(),'video':self.video.get(),'track':self.track.get(),'points':self.points.get()},indent=2),encoding='utf-8')
 
     def edit_segments(self):
         if self.child and self.child.poll() is None:
@@ -122,7 +129,9 @@ class Launcher:
             env = os.environ.copy()
             env['PYTHONIOENCODING'] = 'utf-8'
             self.log = open(BASE/'analysis-log.txt', 'w', encoding='utf-8')
-            self.child = subprocess.Popen([sys.executable, str(script), '--track', str(track)],
+            command=[sys.executable, str(script), '--track', str(track)]
+            if self.points.get().strip(): command.extend(['--points',str(Path(self.points.get()).resolve())])
+            self.child = subprocess.Popen(command,
                 cwd=BASE, env=env, stdout=self.log, stderr=self.log)
             self.refresh_controls()
             self.status.set('Edit boundaries and save sections, then close the editor window.')
@@ -226,6 +235,8 @@ class Launcher:
                 command.extend(['--sync-state',str(self.sync_state)])
             if script == 'dashboard.py' and self.track.get().strip():
                 command.extend(['--track', str(Path(self.track.get()).resolve())])
+            if script == 'dashboard.py' and self.points.get().strip():
+                command.extend(['--points',str(Path(self.points.get()).resolve())])
             self.child = subprocess.Popen(command,cwd=BASE,env=env,stdout=self.log,stderr=self.log)
             self.refresh_controls()
             self.root.after(300,self.poll)

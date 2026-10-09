@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Graphically define named track sections inside the $track JSON project."""
 import argparse,json,math,os,tkinter as tk
-from tkinter import messagebox,simpledialog
+from tkinter import messagebox,simpledialog,filedialog
+from interesting_points import InterestingPoints, POINT_COLORS
 from pathlib import Path
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 class App:
-    def __init__(self,root,fn):
+    def __init__(self,root,fn,points_path=None):
         self.root=root; self.fn=Path(fn)
         raw=self.fn.read_text(encoding="utf-8")
         try:
@@ -56,12 +57,18 @@ class App:
         else:
             self.sections=[{"start":0}]
         self.drag=None
+        self.points_model=InterestingPoints({'config':self.data})
+        self.show_points=tk.BooleanVar(value=True)
 
         root.title("Track Section Editor");root.geometry("1050x780")
         bar=tk.Frame(root);bar.pack(fill="x",padx=8,pady=6)
         tk.Button(bar,text="SAVE SECTIONS",command=self.save).pack(side="left")
         tk.Button(bar,text="CLEAR",command=self.clear).pack(side="left")
         tk.Label(bar,text="Click track: split  •  Drag boundary: resize  •  Right-click boundary: merge").pack(side="left",padx=10)
+        points_bar=tk.Frame(root);points_bar.pack(fill='x',padx=8,pady=3)
+        tk.Button(points_bar,text='Load points',command=self.load_points).pack(side='left')
+        tk.Checkbutton(points_bar,text='Show interesting points (read only)',variable=self.show_points,command=self.draw).pack(side='left',padx=8)
+        self.points_info=tk.Label(points_bar,text='No points loaded');self.points_info.pack(side='left')
         self.info=tk.Label(root);self.info.pack(fill="x")
         fig=Figure(figsize=(9,6.5),dpi=100);self.ax=fig.add_subplot(111)
         self.cv=FigureCanvasTkAgg(fig,root);self.cv.get_tk_widget().pack(fill="both",expand=True)
@@ -69,6 +76,24 @@ class App:
         self.cv.mpl_connect("motion_notify_event",self.motion)
         self.cv.mpl_connect("button_release_event",self.release)
         self.draw()
+        if points_path:self.load_points(points_path)
+
+    def load_points(self,filename=None):
+        if filename is None:filename=filedialog.askopenfilename(parent=self.root,title='Load interesting points',filetypes=[('Points JSON','*.json')])
+        if not filename:return
+        try:self.points_model.load(Path(filename))
+        except (OSError,ValueError,KeyError) as exc:
+            messagebox.showerror('Cannot load points',str(exc),parent=self.root);return
+        self.show_points.set(True)
+        self.points_info.config(text=f'{len(self.points_model.markers)} points • {Path(filename).name}')
+        self.draw()
+
+    def point_at_pixel(self,e,limit=12):
+        if not self.show_points.get():return False
+        for marker in self.points_model.markers:
+            x,y=self.ax.transData.transform((marker['x_m'],marker['y_m']))
+            if math.hypot(x-e.x,y-e.y)<=limit:return True
+        return False
 
     def q(self,pos): return min(self.pts,key=lambda p:abs(p[0]-pos))
     def nearest_track(self,x,y):
@@ -103,6 +128,7 @@ class App:
 
     def press(self,e):
         if e.inaxes!=self.ax or e.xdata is None:return
+        if self.point_at_pixel(e):return
         bi=self.boundary_at_pixel(e)
         if e.button==3:
             if bi is not None and self.sections[bi]["start"]!=0:
@@ -136,6 +162,11 @@ class App:
         for s in self.sections:
             q=self.q(s["start"]);self.ax.plot(q[1],q[2],"o",markersize=7)
             self.ax.annotate(str(s["start"]),(q[1],q[2]),xytext=(5,5),textcoords="offset points",fontsize=8)
+        if self.show_points.get():
+            for marker in self.points_model.markers:
+                x,y=marker['x_m'],marker['y_m'];color=POINT_COLORS[marker['type']]
+                self.ax.plot(x,y,marker='D' if marker['type']=='marker' else 'o',color=color,markersize=7)
+                self.ax.annotate(marker['label'],(x,y),xytext=(9,-10),textcoords='offset points',fontsize=9,color=color)
         self.ax.set_title("Track Sections")
         self.info.config(text=f'{len(self.sections)} section{"s" if len(self.sections)!=1 else ""} • TrackPosition 0–{self.div}')
         self.cv.draw_idle()
@@ -164,10 +195,10 @@ class App:
             self.root.destroy()
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument("--track",default=os.getenv("track"));a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument("--track",default=os.getenv("track"));p.add_argument("--points");a=p.parse_args()
     if not a.track:p.error("Set $track or use --track FILE.")
     r=tk.Tk()
-    try:App(r,a.track)
+    try:App(r,a.track,a.points)
     except Exception as e:r.withdraw();messagebox.showerror("Section Editor",str(e));raise
     r.mainloop()
 if __name__=="__main__":main()
