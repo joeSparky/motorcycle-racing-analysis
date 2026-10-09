@@ -17,6 +17,22 @@ def identity(geometry):
                 reference=[[n['position'],*n['reference'][:2]] for n in config['nodes']])
 
 
+def validate_identity(saved, current):
+    if not isinstance(saved,dict): raise ValueError('Points file has no track identity.')
+    if saved.get('divisions') != current['divisions']:
+        raise ValueError('Points file uses a different track position scale.')
+    try:
+        a=saved['origin'];b=current['origin']
+        same_origin=np.allclose([a['latitude'],a['longitude']],[b['latitude'],b['longitude']],rtol=0,atol=1e-9)
+        first=np.asarray(saved['reference'],dtype=float);second=np.asarray(current['reference'],dtype=float)
+        same_reference=first.shape==second.shape and np.allclose(first,second,rtol=0,atol=1e-6)
+    except (KeyError,TypeError,ValueError):
+        raise ValueError('Points file has an invalid track reference.')
+    if not same_origin: raise ValueError('Points file uses a different track origin. Select the track project used to create these points.')
+    if not same_reference: raise ValueError('Points file uses a different track shape or node positions. Select the original track project used to create these points.')
+    # Names may change; coordinates and position scale determine compatibility.
+
+
 class InterestingPoints:
     def __init__(self, geometry):
         self.geometry=geometry; self.markers=[]; self.saved=[]; self.path=None
@@ -26,8 +42,9 @@ class InterestingPoints:
 
     def load(self,path):
         data=json.loads(path.read_text(encoding='utf-8-sig'))
-        if data.get('format') != 'track-interesting-points-v1' or data.get('track_identity') != identity(self.geometry):
-            raise ValueError('This points file belongs to a different track reference.')
+        if data.get('format') != 'track-interesting-points-v1':
+            raise ValueError('Choose an interesting-points JSON, not a track project or session file.')
+        validate_identity(data.get('track_identity'),identity(self.geometry))
         markers=data.get('markers'); ids=set()
         if not isinstance(markers,list): raise ValueError('Invalid points file.')
         for m in markers:

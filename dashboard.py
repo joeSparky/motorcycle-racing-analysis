@@ -152,6 +152,7 @@ class Dashboard:
         self.lap_dialog = None
         self.track_path = Path(track_path) if track_path else None
         self.track_view = None
+        self.points_path = None
         self.segment_process = None
         self.segment_dialog = None
         self.segment_output = None
@@ -441,7 +442,7 @@ class Dashboard:
             from trackView import TrackView
             if not {'GPS Latitude','GPS Longitude'}.issubset(self.race_data.fields):
                 raise ValueError('This recording has no GPS latitude/longitude channels.')
-            self.track_view=TrackView(self.root,self.track_path,is_paused=lambda:self.mpv.get_property("pause"))
+            self.track_view=TrackView(self.root,self.track_path,is_paused=lambda:self.mpv.get_property("pause"),points_path=self.points_path)
         except (OSError,ValueError,KeyError) as exc:
             messagebox.showerror('Cannot open track map',str(exc),parent=self.root)
 
@@ -716,6 +717,7 @@ def main():
     parser.add_argument("--video", help="Override $video.")
     parser.add_argument("--sync-state", help="Shared statistics video mapping")
     parser.add_argument("--config", help="Dashboard YAML file.")
+    parser.add_argument("--points", help="Interesting points JSON")
     parser.add_argument("--track", help="Prepared track project with saved segments")
     parser.add_argument("--socket", default=DEFAULT_PIPE)
     args = parser.parse_args()
@@ -761,6 +763,7 @@ def main():
         root, race_data, calibration, args.socket,
         video_path, config, args.track
     )
+    dashboard.points_path = Path(args.points) if args.points else None
     dashboard.sync_state = Path(args.sync_state) if args.sync_state else None
     dashboard.publish_sync()
     dashboard.config_path = config_path

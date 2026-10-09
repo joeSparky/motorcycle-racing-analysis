@@ -34,7 +34,7 @@ class InterestingPointTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'points.json'; model.save(path)
             data=json.loads(path.read_text())
-            data['track_identity']['track']='Other'; path.write_text(json.dumps(data))
+            data['track_identity']['origin']['latitude']=41; path.write_text(json.dumps(data))
             with self.assertRaises(ValueError): model.load(path)
             self.assertEqual(model.markers,[original])
             data['track_identity']=identity(self.geometry); data['markers'][0]['x_m']='bad'

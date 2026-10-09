@@ -65,7 +65,7 @@ class MapViewport:
 
 
 class TrackView:
-    def __init__(self,parent,path,is_paused=None):
+    def __init__(self,parent,path,is_paused=None,points_path=None):
         self.is_paused=is_paused or (lambda:False)
         self.points_model=InterestingPoints(track.load_track(path))
         self.selected=None; self.point_drag=None; self.add_pending=False
@@ -108,6 +108,7 @@ class TrackView:
         self.canvas.bind('<ButtonRelease-1>',self.end_pan)
         ttk.Label(controls,text='Wheel: zoom • Drag: pan').pack(side='left',padx=8)
         self.window.protocol('WM_DELETE_WINDOW',self.close)
+        if points_path: self.load_points(points_path)
 
     def can_edit(self):
         try: paused=self.is_paused() is True
@@ -133,10 +134,10 @@ class TrackView:
         self.point_label.set(marker['label'] if marker else '')
         self.point_type.set(marker['type'] if marker else 'apex')
 
-    def load_points(self):
+    def load_points(self,path=None):
         if self.points_model.dirty:
             messagebox.showinfo('Unsaved points','Save or Cancel your changes before loading another file.',parent=self.window); return
-        path=filedialog.askopenfilename(parent=self.window,title='Load interesting points',filetypes=[('Points JSON','*.json')])
+        if path is None: path=filedialog.askopenfilename(parent=self.window,title='Load interesting points',filetypes=[('Points JSON','*.json')])
         if not path: return
         try: self.points_model.load(Path(path))
         except (OSError,ValueError,KeyError) as exc:

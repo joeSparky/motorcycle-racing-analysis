@@ -8,7 +8,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 class App:
-    def __init__(self,root,fn):
+    def __init__(self,root,fn,points_path=None):
         self.root=root; self.fn=Path(fn)
         raw=self.fn.read_text(encoding="utf-8")
         try:
@@ -76,9 +76,10 @@ class App:
         self.cv.mpl_connect("motion_notify_event",self.motion)
         self.cv.mpl_connect("button_release_event",self.release)
         self.draw()
+        if points_path:self.load_points(points_path)
 
-    def load_points(self):
-        filename=filedialog.askopenfilename(parent=self.root,title='Load interesting points',filetypes=[('Points JSON','*.json')])
+    def load_points(self,filename=None):
+        if filename is None:filename=filedialog.askopenfilename(parent=self.root,title='Load interesting points',filetypes=[('Points JSON','*.json')])
         if not filename:return
         try:self.points_model.load(Path(filename))
         except (OSError,ValueError,KeyError) as exc:
@@ -194,10 +195,10 @@ class App:
             self.root.destroy()
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument("--track",default=os.getenv("track"));a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument("--track",default=os.getenv("track"));p.add_argument("--points");a=p.parse_args()
     if not a.track:p.error("Set $track or use --track FILE.")
     r=tk.Tk()
-    try:App(r,a.track)
+    try:App(r,a.track,a.points)
     except Exception as e:r.withdraw();messagebox.showerror("Section Editor",str(e));raise
     r.mainloop()
 if __name__=="__main__":main()
