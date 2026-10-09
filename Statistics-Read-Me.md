@@ -58,3 +58,11 @@ For magnitude regardless of turn direction, use `abs(degrees(atan([GPS LatAcc]))
 ## Zooming and panning the track map
 
 Use the mouse wheel to zoom around the pointer, and drag with the left mouse button to pan. Fit track returns to the whole reference track; Fit track + Steve includes the current valid GPS position, even far from the track. That button is disabled when no valid nearby GPS sample is available. These buttons fit once; playback does not automatically change your view. Resizing preserves the chosen center and distance scale. The map stays north up, and a distance scale in meters is shown at the bottom left. Zoom and pan do not edit the track or change Steve's coordinates.
+
+## Interesting points on the dashboard map
+
+Load points opens the JSON saved by interestingPoints.html. Entry points are green, apexes purple, and exits orange, with their names shown on the map. Show points hides or displays them. Files must match the prepared track reference, including its origin, divisions and nodes.
+
+Pause the video and enable Edit points (paused). Click Add point, then click the map; or click Place at Steve to create a point at his current valid GPS sample. Select an existing point by clicking its marker, then drag it, rename it with Apply name/type, delete it, or use Place at Steve to move it to his sample. Clicking empty space clears selection and allows panning. Point location changes stop if playback resumes. To create another point at Steve, first click empty space to clear selection.
+
+Save points writes a separate JSON compatible with the browser editor; the first save asks for a filename, later saves update that file. Cancel discards changes since the last load/save. Closing the map or dashboard prompts to save unsaved changes. Notes from existing files are preserved. The prepared track remains unchanged. Point editing requires a prepared track JSON, not the older YAML track format. Remember to load your points when reopening the map.

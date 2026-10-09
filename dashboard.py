@@ -441,7 +441,7 @@ class Dashboard:
             from trackView import TrackView
             if not {'GPS Latitude','GPS Longitude'}.issubset(self.race_data.fields):
                 raise ValueError('This recording has no GPS latitude/longitude channels.')
-            self.track_view=TrackView(self.root,self.track_path)
+            self.track_view=TrackView(self.root,self.track_path,is_paused=lambda:self.mpv.get_property("pause"))
         except (OSError,ValueError,KeyError) as exc:
             messagebox.showerror('Cannot open track map',str(exc),parent=self.root)
 
@@ -462,6 +462,9 @@ class Dashboard:
         self.publish_sync()
 
     def close(self):
+        if self.track_view is not None and self.track_view.exists():
+            self.track_view.close()
+            if self.track_view.exists(): return
         if self.segment_process is not None and self.segment_process.poll() is None:
             self.segment_process.terminate()
             try:
