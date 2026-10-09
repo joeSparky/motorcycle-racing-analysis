@@ -3,6 +3,7 @@
 import argparse,json,math,os,tkinter as tk
 from tkinter import messagebox,simpledialog,filedialog
 from interesting_points import InterestingPoints, POINT_COLORS
+from points_selection import selected_points
 from pathlib import Path
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -76,9 +77,11 @@ class App:
         self.cv.mpl_connect("motion_notify_event",self.motion)
         self.cv.mpl_connect("button_release_event",self.release)
         self.draw()
+        self.default_points_path=points_path
         if points_path:self.load_points(points_path)
 
     def load_points(self,filename=None):
+        if filename is None:filename=selected_points(self.fn) or self.default_points_path
         if filename is None:filename=filedialog.askopenfilename(parent=self.root,title='Load interesting points',filetypes=[('Points JSON','*.json')])
         if not filename:return
         try:self.points_model.load(Path(filename))

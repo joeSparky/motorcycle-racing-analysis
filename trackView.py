@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import numpy as np
 import track
+from points_selection import selected_points, remember_points
 from pathlib import Path
 from point_images import image_data_url, decode_picture
 from PIL import ImageTk
@@ -122,6 +123,8 @@ class TrackView:
         self.canvas.bind('<ButtonRelease-1>',self.end_pan)
         ttk.Label(controls,text='Wheel: zoom • Drag: pan').pack(side='left',padx=8)
         self.window.protocol('WM_DELETE_WINDOW',self.close)
+        self.selection_track_path=Path(path)
+        self.default_points_path=points_path
         if points_path: self.load_points(points_path)
 
     def can_edit(self):
@@ -153,11 +156,14 @@ class TrackView:
     def load_points(self,path=None):
         if self.points_model.dirty:
             messagebox.showinfo('Unsaved points','Save or Cancel your changes before loading another file.',parent=self.window); return
+        if path is None: path=selected_points(self.selection_track_path) or self.default_points_path
         if path is None: path=filedialog.askopenfilename(parent=self.window,title='Load interesting points',filetypes=[('Points JSON','*.json')])
         if not path: return
         try: self.points_model.load(Path(path))
         except (OSError,ValueError,KeyError) as exc:
             messagebox.showerror('Cannot load points',str(exc),parent=self.window); return
+        self.default_points_path=path
+        remember_points(self.selection_track_path,path)
         self.choose_point(None); self.show_points.set(True); self.draw()
         self.status.set(f'Loaded {len(self.points_model.markers)} points from {Path(path).name}.')
 
@@ -223,6 +229,8 @@ class TrackView:
         try: self.points_model.save(path)
         except (OSError,ValueError,KeyError) as exc:
             messagebox.showerror('Cannot save points',str(exc),parent=self.window); return
+        self.default_points_path=path
+        remember_points(self.selection_track_path,path)
         self.status.set(f'Points saved to {path}.')
 
     def cancel_points(self):

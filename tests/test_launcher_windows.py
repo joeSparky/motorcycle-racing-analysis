@@ -22,6 +22,8 @@ class LauncherWindowTests(unittest.TestCase):
         a.video=Mock(); a.video.get.return_value=str(video)
         a.track=Mock(); a.track.get.return_value=''
         a.points=Mock(); a.points.get.return_value=''
+        a.data_root=Mock();a.data_root.get.return_value=str(self.base)
+        a.track_directory=Mock();a.track_directory.get.return_value=''
 
     def tearDown(self):
         if self.app.log: self.app.log.close()
