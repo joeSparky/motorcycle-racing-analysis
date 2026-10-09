@@ -80,3 +80,7 @@ The main screen has an optional Interesting points file field. It is remembered 
 ## Going to a segment pass
 
 Best segment timing's Go to best segment and Go to selected pass buttons seek to the pass entry and leave MPV paused. Double-clicking a complete pass does the same. Use the usual playback controls when ready. The segment end remains active, so playback stops there or repeats if Repeat is selected; repeats play normally. Lap analysis's Play lap buttons still start playback immediately.
+
+## Reference pictures for points
+
+On the dashboard map, pause the video, enable Edit points and select a point. Attach image accepts a screenshot or photograph (PNG, JPEG, BMP or WebP). You can annotate it beforehand with your preferred image editor. Pictures are converted to PNG, fitted within 1600 pixels and embedded in the points JSON. Input pictures must be smaller than 10 MB. Save points keeps the attachment; Cancel restores the previous saved picture. Remove image removes only the attachment. Notes are edited with Apply details. View image opens the reference picture and saved point notes; selecting and viewing a point also works outside edit mode during playback. Existing points without pictures remain supported, and the browser editor preserves the embedded picture when saving the file.

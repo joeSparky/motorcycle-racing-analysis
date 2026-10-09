@@ -53,6 +53,9 @@ class InterestingPoints:
                     or not isinstance(m.get('label'),str) or not isinstance(m.get('notes'),str)
                     or any(type(m.get(k)) not in (int,float) or not math.isfinite(m[k]) for k in ('x_m','y_m'))):
                 raise ValueError('Invalid interesting point.')
+            if 'image_data_url' in m:
+                from point_images import decode_picture
+                decode_picture(m['image_data_url'])
             ids.add(m['id'])
         self.markers=copy.deepcopy(markers); self.saved=copy.deepcopy(markers); self.path=path
 

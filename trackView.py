@@ -5,6 +5,8 @@ from tkinter import ttk, filedialog, messagebox
 import numpy as np
 import track
 from pathlib import Path
+from point_images import image_data_url, decode_picture
+from PIL import ImageTk
 from interesting_points import InterestingPoints, identity, POINT_COLORS
 
 
@@ -93,7 +95,16 @@ class TrackView:
         ttk.Label(properties,text='Name').pack(side='left')
         ttk.Entry(properties,textvariable=self.point_label,width=22).pack(side='left',padx=3)
         ttk.Combobox(properties,textvariable=self.point_type,values=['entry','apex','exit','marker'],state='readonly',width=8).pack(side='left')
-        ttk.Button(properties,text='Apply name/type',command=self.apply_point).pack(side='left',padx=3)
+        ttk.Button(properties,text='Apply details',command=self.apply_point).pack(side='left',padx=3)
+        notes_row=ttk.Frame(self.window); notes_row.pack(fill='x',padx=8,pady=3)
+        ttk.Label(notes_row,text='Notes').pack(side='left')
+        self.point_notes=tk.StringVar()
+        ttk.Entry(notes_row,textvariable=self.point_notes).pack(side='left',fill='x',expand=True,padx=4)
+        images=ttk.Frame(self.window); images.pack(fill='x',padx=8,pady=3)
+        for label,callback in [('Attach image…',self.attach_image),('View image',self.view_image),('Remove image',self.remove_image)]:
+            ttk.Button(images,text=label,command=callback).pack(side='left',padx=2)
+        self.image_info=tk.StringVar(value='No point selected')
+        ttk.Label(images,textvariable=self.image_info).pack(side='left',padx=8)
         self.canvas=tk.Canvas(self.window,background='white',highlightthickness=0)
         self.canvas.pack(fill='both',expand=True)
         self.status=tk.StringVar(value='Start the video to show the recorded position.')
@@ -133,6 +144,8 @@ class TrackView:
         self.selected=marker
         self.point_label.set(marker['label'] if marker else '')
         self.point_type.set(marker['type'] if marker else 'apex')
+        self.point_notes.set(marker.get('notes','') if marker else '')
+        self.image_info.set('Image attached' if marker and marker.get('image_data_url') else 'No image attached' if marker else 'No point selected')
 
     def load_points(self,path=None):
         if self.points_model.dirty:
@@ -161,8 +174,34 @@ class TrackView:
 
     def apply_point(self):
         if not self.can_edit() or self.selected is None: return
-        self.selected.update(label=self.point_label.get().strip() or self.point_type.get(),type=self.point_type.get())
+        self.selected.update(label=self.point_label.get().strip() or self.point_type.get(),type=self.point_type.get(),notes=self.point_notes.get())
         self.draw()
+
+    def attach_image(self):
+        if not self.can_edit() or self.selected is None: return
+        filename=filedialog.askopenfilename(parent=self.window,title='Attach reference picture',filetypes=[('Pictures','*.png *.jpg *.jpeg *.bmp *.webp'),('All files','*.*')])
+        if not filename:return
+        try: picture=image_data_url(Path(filename))
+        except (OSError,ValueError) as exc:
+            messagebox.showerror('Cannot attach image',str(exc),parent=self.window);return
+        self.selected['image_data_url']=picture
+        self.image_info.set('Image attached');self.status.set('Reference picture attached. Save points to keep it.')
+
+    def view_image(self):
+        if self.selected is None or not self.selected.get('image_data_url'):
+            self.status.set('Select a point with an attached image.');return
+        try: picture=decode_picture(self.selected['image_data_url'])
+        except ValueError as exc:
+            messagebox.showerror('Cannot view image',str(exc),parent=self.window);return
+        window=tk.Toplevel(self.window);window.title(self.selected['label']+' — reference picture')
+        picture.thumbnail((1000,700))
+        photo=ImageTk.PhotoImage(picture,master=window)
+        label=ttk.Label(window,image=photo);label.image=photo;label.pack(padx=8,pady=8)
+        ttk.Label(window,text=self.selected.get('notes',''),wraplength=900).pack(padx=8,pady=8)
+
+    def remove_image(self):
+        if not self.can_edit() or self.selected is None:return
+        self.selected.pop('image_data_url',None);self.image_info.set('No image attached')
 
     def save_points(self):
         path=self.points_model.path
@@ -219,6 +258,11 @@ class TrackView:
             if hits:
                 self.choose_point(min(hits,key=lambda item:item[0])[1]); self.point_drag=self.selected; self.draw(); return
             self.choose_point(None); self.draw()
+        if not self.edit_points.get() and self.show_points.get():
+            for marker in self.points_model.markers:
+                x,y=self.transform((marker['x_m'],marker['y_m']))
+                if math.hypot(x-event.x,y-event.y)<=14:
+                    self.choose_point(marker);self.draw();return
         self.drag_origin=(event.x,event.y); self.canvas.configure(cursor='fleur')
 
     def pan(self,event):
