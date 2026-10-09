@@ -66,3 +66,9 @@ Load points opens the JSON saved by interestingPoints.html. Entry points are gre
 Pause the video and enable Edit points (paused). Click Add point, then click the map; or click Place at Steve to create a point at his current valid GPS sample. Select an existing point by clicking its marker, then drag it, rename it with Apply name/type, delete it, or use Place at Steve to move it to his sample. Clicking empty space clears selection and allows panning. Point location changes stop if playback resumes. To create another point at Steve, first click empty space to clear selection.
 
 Save points writes a separate JSON compatible with the browser editor; the first save asks for a filename, later saves update that file. Cancel discards changes since the last load/save. Closing the map or dashboard prompts to save unsaved changes. Notes from existing files are preserved. The prepared track remains unchanged. Point editing requires a prepared track JSON, not the older YAML track format. Remember to load your points when reopening the map.
+
+## Landmark markers and section-editor references
+
+Interesting points now have four types: entry, apex, exit, and marker. Use marker for a tree, tar snake or another visual reference Steve uses for his line. Markers are amber. In the dashboard, select a point, choose marker in the type dropdown and click Apply name/type, then Save points. The browser editor also supports the new category; use the updated interestingPoints.html when opening files containing markers.
+
+In Edit Segments / Track Section Editor, click Load points to open the same points JSON. Show interesting points (read only) controls the overlay. Names and locations are displayed, but points cannot be edited or saved there. Clicking a point does not create or move a section boundary. Hide the overlay if a point obscures a boundary you want to edit. SAVE SECTIONS continues to save only the track's sections, leaving the separate points file unchanged.

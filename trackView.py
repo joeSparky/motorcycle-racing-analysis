@@ -5,7 +5,7 @@ from tkinter import ttk, filedialog, messagebox
 import numpy as np
 import track
 from pathlib import Path
-from interesting_points import InterestingPoints, identity
+from interesting_points import InterestingPoints, identity, POINT_COLORS
 
 
 def recorded_position(row, geometry):
@@ -92,7 +92,7 @@ class TrackView:
         self.point_label=tk.StringVar(); self.point_type=tk.StringVar(value='apex')
         ttk.Label(properties,text='Name').pack(side='left')
         ttk.Entry(properties,textvariable=self.point_label,width=22).pack(side='left',padx=3)
-        ttk.Combobox(properties,textvariable=self.point_type,values=['entry','apex','exit'],state='readonly',width=8).pack(side='left')
+        ttk.Combobox(properties,textvariable=self.point_type,values=['entry','apex','exit','marker'],state='readonly',width=8).pack(side='left')
         ttk.Button(properties,text='Apply name/type',command=self.apply_point).pack(side='left',padx=3)
         self.canvas=tk.Canvas(self.window,background='white',highlightthickness=0)
         self.canvas.pack(fill='both',expand=True)
@@ -260,7 +260,7 @@ class TrackView:
         if self.show_points.get():
             for marker in self.points_model.markers:
                 px,py=self.transform((marker['x_m'],marker['y_m']))
-                color={'entry':'#16a085','apex':'#b33ed2','exit':'#d14b39'}[marker['type']]
+                color=POINT_COLORS[marker['type']]
                 self.canvas.create_oval(px-7,py-7,px+7,py+7,fill=color,outline='black' if marker is self.selected else 'white',width=2)
                 self.canvas.create_text(px+11,py-10,text=marker['label'],anchor='w',fill=color)
         self.canvas.create_text(25,20,text='N ↑',anchor='w',fill='#475569')

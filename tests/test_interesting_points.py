@@ -54,3 +54,24 @@ class PausedEditingTests(unittest.TestCase):
             self.assertEqual(view.can_edit(),expected)
         view.is_paused=Mock(side_effect=ConnectionError)
         self.assertFalse(view.can_edit())
+
+class LandmarkTests(InterestingPointTests):
+    def test_landmark_round_trip(self):
+        model=InterestingPoints(self.geometry)
+        point=model.add([300,150]);point.update(type='marker',label='Tree',notes='Aim left of tree')
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'points.json';model.save(path)
+            loaded=InterestingPoints(self.geometry);loaded.load(path)
+            self.assertEqual(loaded.markers[0]['type'],'marker')
+            self.assertEqual(loaded.markers[0]['label'],'Tree')
+            self.assertEqual(loaded.markers[0]['x_m'],300)
+
+    def test_section_editor_point_click_does_not_split(self):
+        from sectionEditor import App
+        from unittest.mock import Mock
+        editor=App.__new__(App);editor.ax=object()
+        editor.point_at_pixel=Mock(return_value=True)
+        editor.boundary_at_pixel=Mock()
+        event=Mock(inaxes=editor.ax,xdata=50)
+        editor.press(event)
+        editor.boundary_at_pixel.assert_not_called()

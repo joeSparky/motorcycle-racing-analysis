@@ -7,6 +7,8 @@ import numpy as np
 import track
 
 
+POINT_COLORS = {'entry':'#16a085','apex':'#b33ed2','exit':'#d14b39','marker':'#b7791f'}
+
 def identity(geometry):
     config=geometry['config']
     if config.get('format') != 'track-editor-master-v1':
@@ -30,7 +32,7 @@ class InterestingPoints:
         if not isinstance(markers,list): raise ValueError('Invalid points file.')
         for m in markers:
             if (not isinstance(m,dict) or not isinstance(m.get('id'),str) or m['id'] in ids
-                    or m.get('type') not in ('entry','apex','exit')
+                    or m.get('type') not in ('entry','apex','exit','marker')
                     or not isinstance(m.get('label'),str) or not isinstance(m.get('notes'),str)
                     or any(type(m.get(k)) not in (int,float) or not math.isfinite(m[k]) for k in ('x_m','y_m'))):
                 raise ValueError('Invalid interesting point.')
