@@ -84,3 +84,9 @@ Best segment timing's Go to best segment and Go to selected pass buttons seek to
 ## Reference pictures for points
 
 On the dashboard map, pause the video, enable Edit points and select a point. Attach image accepts a screenshot or photograph (PNG, JPEG, BMP or WebP). You can annotate it beforehand with your preferred image editor. Pictures are converted to PNG, fitted within 1600 pixels and embedded in the points JSON. Input pictures must be smaller than 10 MB. Save points keeps the attachment; Cancel restores the previous saved picture. Remove image removes only the attachment. Notes are edited with Apply details. View image opens the reference picture and saved point notes; selecting and viewing a point also works outside edit mode during playback. Existing points without pictures remain supported, and the browser editor preserves the embedded picture when saving the file.
+
+## Track data folders
+
+The launcher remembers a racingData folder and a selected Track data folder. The default racingData location is your home folder; Browse lets you choose another location, such as C:\projects\racingData. New track folder creates a named subfolder (and the racingData folder if necessary). Track data folder Browse selects an existing folder.
+
+Selecting a track folder clears the four file selections so you can choose that track's Race CSV, Helmet video, Track project and Interesting points. It does not delete or move files. All four Browse buttons and Select Video Pieces start in the selected track folder. Keep the CSV, video, track project and points there; the application remembers both folders on restart. Track archive (.ztracks) import is a separate upcoming step.

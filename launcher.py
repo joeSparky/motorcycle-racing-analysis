@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 import uuid
 from video_pieces import ordered_pieces, create_timeline
 
@@ -22,12 +22,14 @@ class Launcher:
         self.video_socket = r"\\.\pipe\race-statistics-" + uuid.uuid4().hex
         self.sync_state = BASE/("video-link-" + uuid.uuid4().hex + ".json")
         root.title("Steve's Race Analysis")
-        root.geometry('850x490')
+        root.geometry('950x610')
         root.minsize(760, 380)
         self.race = tk.StringVar()
         self.video = tk.StringVar()
         self.track = tk.StringVar()
         self.points = tk.StringVar()
+        self.data_root = tk.StringVar(value=str(Path.home()/'racingData'))
+        self.track_directory = tk.StringVar()
         self.status = tk.StringVar(value='Choose a race CSV and its helmet video.')
         try:
             saved = json.loads((BASE/'last-race.json').read_text(encoding='utf-8-sig'))
@@ -35,6 +37,8 @@ class Launcher:
             self.video.set(saved.get('video', ''))
             self.track.set(saved.get('track', ''))
             self.points.set(saved.get('points', ''))
+            self.data_root.set(saved.get('data_root',self.data_root.get()))
+            self.track_directory.set(saved.get('track_directory',''))
         except (OSError, ValueError):
             pass
         frame = ttk.Frame(root, padding=20)
@@ -71,7 +75,55 @@ class Launcher:
         self.csv_buttons['sessionInfo.py'] = metadata_button
         ttk.Label(frame, text='New recording: calibrate first. Saved calibration: open the dashboard directly.', wraplength=690).grid(row=7, column=0, columnspan=3, sticky='w')
         ttk.Label(frame, textvariable=self.status, wraplength=690).grid(row=8, column=0, columnspan=3, sticky='w', pady=(16,0))
+        for widget in frame.winfo_children():
+            info=widget.grid_info()
+            if info and int(info['row'])>0:widget.grid_configure(row=int(info['row'])+2)
+        folder_controls=[]
+        for row,label,var,callback in [(1,'racingData folder',self.data_root,self.choose_data_root),(2,'Track data folder',self.track_directory,self.choose_track_directory)]:
+            ttk.Label(frame,text=label).grid(row=row,column=0,sticky='w',pady=6)
+            entry=ttk.Entry(frame,textvariable=var,state='readonly');entry.grid(row=row,column=1,sticky='ew')
+            button=ttk.Button(frame,text='Browse...',command=callback);button.grid(row=row,column=2,padx=(10,0))
+            folder_controls.extend([entry,button])
+        create=ttk.Button(frame,text='New track folder...',command=self.create_track_directory)
+        create.grid(row=2,column=3,padx=(10,0));folder_controls.append(create)
+        self.file_controls.extend(folder_controls)
         root.protocol('WM_DELETE_WINDOW', self.close)
+
+    def initial_directory(self):
+        for value in (self.track_directory.get(),self.data_root.get()):
+            if value and Path(value).is_dir():return value
+        return str(Path.home())
+
+    def choose_data_root(self):
+        if self.running():return
+        folder=filedialog.askdirectory(parent=self.root,title='Choose racingData folder',initialdir=self.initial_directory(),mustexist=False)
+        if not folder:return
+        try:
+            Path(folder).mkdir(parents=True,exist_ok=True)
+            self.data_root.set(folder);self.track_directory.set('');self.save()
+        except OSError as exc:messagebox.showerror('Cannot create data folder',str(exc),parent=self.root)
+
+    def set_track_directory(self,folder):
+        self.track_directory.set(str(folder))
+        for var in (self.race,self.video,self.track,self.points):var.set('')
+        self.save();self.status.set('Track folder selected. Choose its race CSV, video, track project and points.')
+
+    def choose_track_directory(self):
+        if self.running():return
+        folder=filedialog.askdirectory(parent=self.root,title='Choose track data folder',initialdir=self.initial_directory())
+        if folder:self.set_track_directory(folder)
+
+    def create_track_directory(self):
+        if self.running():return
+        name=simpledialog.askstring('New track folder','Track folder name (for example Barber):',parent=self.root)
+        if name is None:return
+        name=name.strip()
+        if not name or name in ('.','..') or any(c in name for c in '<>:"/\\|?*') or name.endswith('.'):
+            messagebox.showerror('Invalid folder name','Enter a single folder name without path separators or special characters.',parent=self.root);return
+        try:
+            folder=Path(self.data_root.get())/name
+            folder.mkdir(parents=True,exist_ok=True);self.set_track_directory(folder)
+        except OSError as exc:messagebox.showerror('Cannot create track folder',str(exc),parent=self.root)
 
     def choose(self, var):
         if self.running():
@@ -81,7 +133,7 @@ class Launcher:
             types = [('Track project JSON','*.json'),('All files','*.*')]
         if var is self.points:
             types = [('Interesting points JSON','*.json'),('All files','*.*')]
-        path = filedialog.askopenfilename(parent=self.root, filetypes=types)
+        path = filedialog.askopenfilename(parent=self.root, initialdir=self.initial_directory(), filetypes=types)
         if path:
             var.set(path)
             self.save()
@@ -90,7 +142,7 @@ class Launcher:
         if self.running():
             messagebox.showinfo('Close analysis first', 'Close the open analysis windows before changing video pieces.', parent=self.root)
             return
-        paths = filedialog.askopenfilenames(parent=self.root, title='Select all pieces of ONE continuous recording', filetypes=[('Video files','*.mp4 *.mov *.mkv *.avi *.m4v')])
+        paths = filedialog.askopenfilenames(parent=self.root, title='Select all pieces of ONE continuous recording', initialdir=self.initial_directory(), filetypes=[('Video files','*.mp4 *.mov *.mkv *.avi *.m4v')])
         if not paths:
             return
         try:
@@ -108,7 +160,7 @@ class Launcher:
             messagebox.showerror('Video pieces', str(e), parent=self.root)
 
     def save(self):
-        (BASE/'last-race.json').write_text(json.dumps({'race':self.race.get(),'video':self.video.get(),'track':self.track.get(),'points':self.points.get()},indent=2),encoding='utf-8')
+        (BASE/'last-race.json').write_text(json.dumps({'race':self.race.get(),'video':self.video.get(),'track':self.track.get(),'points':self.points.get(),'data_root':self.data_root.get(),'track_directory':self.track_directory.get()},indent=2),encoding='utf-8')
 
     def edit_segments(self):
         if self.child and self.child.poll() is None:
