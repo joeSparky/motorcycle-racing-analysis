@@ -56,6 +56,7 @@ class Launcher:
         ttk.Label(frame,text='Interesting points').grid(row=4,column=0,sticky='w',padx=(0,10),pady=6)
         ttk.Entry(frame,textvariable=self.points).grid(row=4,column=1,sticky='ew')
         ttk.Button(frame,text='Browse...',command=lambda:self.choose(self.points)).grid(row=4,column=2,padx=(10,0))
+        ttk.Button(frame,text='Import .ztracks...',command=self.import_track).grid(row=3,column=3,padx=(10,0))
         self.file_controls = [w for w in frame.winfo_children() if isinstance(w, (ttk.Entry, ttk.Button))]
         buttons = ttk.Frame(frame)
         buttons.grid(row=5, column=0, columnspan=3, sticky='w', pady=20)
@@ -107,6 +108,44 @@ class Launcher:
         self.track_directory.set(str(folder))
         for var in (self.race,self.video,self.track,self.points):var.set('')
         self.save();self.status.set('Track folder selected. Choose its race CSV, video, track project and points.')
+        self.offer_track_import()
+
+    def offer_track_import(self):
+        folder=Path(self.track_directory.get())
+        for path in folder.glob('*.json'):
+            try:
+                if json.loads(path.read_text(encoding='utf-8-sig')).get('format')=='track-editor-master-v1':return
+            except (OSError,ValueError,AttributeError):pass
+        archives=sorted(p for p in folder.iterdir() if p.suffix.lower()=='.ztracks' and p.is_file())
+        if archives and messagebox.askyesno('Import track','No track project was found. Import a Race Studio .ztracks export now?',parent=self.root):
+            self.import_track(archives[0] if len(archives)==1 else None)
+
+    def import_track(self,source=None):
+        if self.running():return
+        if source is None:
+            source=filedialog.askopenfilename(parent=self.root,title='Import Race Studio track export',initialdir=self.initial_directory(),filetypes=[('Race Studio tracks','*.ztracks')])
+        if not source:return
+        try:
+            from track_import import members, project
+            names=members(source)
+            member=names[0]
+            if len(names)>1:
+                choice=simpledialog.askinteger('Select exported track','Choose track number:\n'+ '\n'.join(f'{i+1}. {n}' for i,n in enumerate(names)),minvalue=1,maxvalue=len(names),parent=self.root)
+                if choice is None:return
+                member=names[choice-1]
+            name=simpledialog.askstring('Track name','Name for this track:',initialvalue=Path(self.track_directory.get() or source).stem,parent=self.root)
+            if not name or not name.strip():return
+            data=project(source,member,name.strip())
+            if not messagebox.askokcancel('Confirm track reference',f"Import {len(data['nodes'])} points for {name.strip()}?\n\nPosition 0 uses the export's first point. Verify start/finish and direction on the track map before comparing laps.",parent=self.root):return
+            output=filedialog.asksaveasfilename(parent=self.root,title='Save track project',initialdir=self.initial_directory(),initialfile=''.join(c if c.isalnum() or c in '-_' else '-' for c in name.strip())+'-track-project.json',defaultextension='.json',filetypes=[('Track project JSON','*.json')])
+            if not output:return
+            if Path(output).resolve()==Path(source).resolve():raise ValueError('Output must differ from the track export.')
+            from expression_editor import save_json
+            save_json(Path(output),data)
+            self.track.set(output);self.save()
+            self.status.set('Track project imported. Open the track map to verify start/finish and direction; use Edit Segments to define segments.')
+        except (OSError,ValueError,KeyError,RuntimeError) as exc:
+            messagebox.showerror('Cannot import track',str(exc),parent=self.root)
 
     def choose_track_directory(self):
         if self.running():return

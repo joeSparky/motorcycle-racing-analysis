@@ -89,4 +89,10 @@ On the dashboard map, pause the video, enable Edit points and select a point. At
 
 The launcher remembers a racingData folder and a selected Track data folder. The default racingData location is your home folder; Browse lets you choose another location, such as C:\projects\racingData. New track folder creates a named subfolder (and the racingData folder if necessary). Track data folder Browse selects an existing folder.
 
-Selecting a track folder clears the four file selections so you can choose that track's Race CSV, Helmet video, Track project and Interesting points. It does not delete or move files. All four Browse buttons and Select Video Pieces start in the selected track folder. Keep the CSV, video, track project and points there; the application remembers both folders on restart. Track archive (.ztracks) import is a separate upcoming step.
+Selecting a track folder clears the four file selections so you can choose that track's Race CSV, Helmet video, Track project and Interesting points. It does not delete or move files. All four Browse buttons and Select Video Pieces start in the selected track folder. Keep the CSV, video, track project and points there; the application remembers both folders on restart. Use Import .ztracks to create a track project from a Race Studio export.
+
+## Importing a Race Studio track export
+
+Put the exported .ztracks in the selected track folder. If the folder contains no prepared track project, selecting it offers to import the export. You can also use Import .ztracks next to Track project at any time. Choose the archive, select a track number if it contains multiple .tkk tracks, and enter the track name. Confirm the reference and choose where to save the JSON project; the launcher selects and remembers that project. Everything runs offline, and the original export is preserved.
+
+The importer uses the same observed AiM binary layout as trackcsv.py; unsupported exports show an error. Consecutive duplicate points are removed, the reference is closed, and distance along it is scaled to positions 0–10000. Position 0 is the export's first point, which is not guaranteed to be the physical start/finish. Verify that location and travel direction on the map before using lap comparisons. Edit Segments defines the segment boundaries afterward. Aerial pictures and interesting points can be added separately.
