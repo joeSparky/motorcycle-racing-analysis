@@ -101,8 +101,10 @@ class TrackView:
         self.point_notes=tk.StringVar()
         ttk.Entry(notes_row,textvariable=self.point_notes).pack(side='left',fill='x',expand=True,padx=4)
         images=ttk.Frame(self.window); images.pack(fill='x',padx=8,pady=3)
-        for label,callback in [('Attach image…',self.attach_image),('View image',self.view_image),('Remove image',self.remove_image)]:
-            ttk.Button(images,text=label,command=callback).pack(side='left',padx=2)
+        self.image_buttons={}
+        for key,label,callback in [('attach','Attach image…',self.attach_image),('view','View image',self.view_image),('remove','Remove image',self.remove_image)]:
+            button=ttk.Button(images,text=label,command=callback);button.pack(side='left',padx=2)
+            self.image_buttons[key]=button
         self.image_info=tk.StringVar(value='No point selected')
         ttk.Label(images,textvariable=self.image_info).pack(side='left',padx=8)
         self.canvas=tk.Canvas(self.window,background='white',highlightthickness=0)
@@ -110,6 +112,7 @@ class TrackView:
         self.status=tk.StringVar(value='Start the video to show the recorded position.')
         ttk.Label(self.window,textvariable=self.status,wraplength=600).pack(fill='x',padx=12,pady=8)
         self.position=None; self.dot=None
+        self.refresh_image_buttons()
         self.canvas.bind('<Configure>',lambda e:self.draw())
         self.canvas.bind('<MouseWheel>',self.zoom)
         self.canvas.bind('<Button-4>',lambda e:self.zoom(e,1))
@@ -145,7 +148,7 @@ class TrackView:
         self.point_label.set(marker['label'] if marker else '')
         self.point_type.set(marker['type'] if marker else 'apex')
         self.point_notes.set(marker.get('notes','') if marker else '')
-        self.image_info.set('Image attached' if marker and marker.get('image_data_url') else 'No image attached' if marker else 'No point selected')
+        self.refresh_image_buttons()
 
     def load_points(self,path=None):
         if self.points_model.dirty:
@@ -177,6 +180,14 @@ class TrackView:
         self.selected.update(label=self.point_label.get().strip() or self.point_type.get(),type=self.point_type.get(),notes=self.point_notes.get())
         self.draw()
 
+    def refresh_image_buttons(self):
+        attached=bool(self.selected and self.selected.get('image_data_url'))
+        self.image_buttons['attach'].configure(text='Replace image…' if attached else 'Attach image…')
+        self.image_buttons['attach'].state(['!disabled'] if self.selected is not None else ['disabled'])
+        for key in ('view','remove'):
+            self.image_buttons[key].state(['!disabled'] if attached else ['disabled'])
+        self.image_info.set('Image attached' if attached else 'No image attached' if self.selected is not None else 'No point selected')
+
     def attach_image(self):
         if not self.can_edit() or self.selected is None: return
         filename=filedialog.askopenfilename(parent=self.window,title='Attach reference picture',filetypes=[('Pictures','*.png *.jpg *.jpeg *.bmp *.webp'),('All files','*.*')])
@@ -185,7 +196,7 @@ class TrackView:
         except (OSError,ValueError) as exc:
             messagebox.showerror('Cannot attach image',str(exc),parent=self.window);return
         self.selected['image_data_url']=picture
-        self.image_info.set('Image attached');self.status.set('Reference picture attached. Save points to keep it.')
+        self.refresh_image_buttons();self.status.set('Reference picture attached. Save points to keep it.')
 
     def view_image(self):
         if self.selected is None or not self.selected.get('image_data_url'):
@@ -201,7 +212,7 @@ class TrackView:
 
     def remove_image(self):
         if not self.can_edit() or self.selected is None:return
-        self.selected.pop('image_data_url',None);self.image_info.set('No image attached')
+        self.selected.pop('image_data_url',None);self.refresh_image_buttons()
 
     def save_points(self):
         path=self.points_model.path
