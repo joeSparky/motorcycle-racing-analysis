@@ -41,7 +41,7 @@ In Edit gauges, Add Gauge creates a new entry. Enter its formula or choose a sav
 
 ## Track position during playback
 
-With a prepared Track project selected in the launcher, starting the Dashboard video also opens a track map. The red dot shows the nearest recorded GPS sample, using the same calibrated time and sync adjustment as the dashboard. Seeking, stepping and pausing update the dot. The outline is the prepared reference track; the black square is its position-zero start/finish reference. North is up, with equal horizontal and vertical distance scale. The dot uses actual recorded GPS coordinates, not a snapped position on the outline. Missing/invalid GPS, data gaps over half a second from the video time and video outside the recording hide the dot. Far-off-track locations can fall outside the map view.
+With a prepared Track project selected in the launcher, starting the Dashboard video also opens a track map. The red dot shows the nearest recorded GPS sample, using the same calibrated time and sync adjustment as the dashboard. Seeking, stepping and pausing update the dot. The outline is the prepared reference track; the black square is its position-zero start/finish reference. North is up, with equal horizontal and vertical distance scale. The dot uses actual recorded GPS coordinates, not a snapped position on the outline. Missing/invalid GPS, data gaps over half a second from the video time and video outside the recording hide the dot. Far-off-track locations retain their actual GPS coordinates. Use Fit track + Steve to bring a distant position into view.
 
 Close the map independently with its X. Click Track map on Dashboard to reopen it or select a prepared track if none was chosen. Closing Dashboard closes its map and video; Statistics remains independent. No aerial imagery is required.
 
@@ -54,3 +54,7 @@ When the CSV contains GPS LatAcc, the saved-expression dropdown includes **Estim
 GPS LatAcc must be in g. The Units field labels the result; it does not convert the input. The estimate assumes steady balanced cornering on a level surface and represents the combined bike/rider lean. Body position, banking, bumps, transitions and GPS noise can make actual motorcycle lean different. It is not a direct measurement or a tire grip limit. This version uses the original samples without smoothing.
 
 For magnitude regardless of turn direction, use `abs(degrees(atan([GPS LatAcc])))`. One g gives 45 degrees; 0.5 g gives about 26.6 degrees. Negative and positive values preserve the original channel's turn direction. The preset is available without saving; Save expression stores your edits locally as usual.
+
+## Zooming and panning the track map
+
+Use the mouse wheel to zoom around the pointer, and drag with the left mouse button to pan. Fit track returns to the whole reference track; Fit track + Steve includes the current valid GPS position, even far from the track. That button is disabled when no valid nearby GPS sample is available. These buttons fit once; playback does not automatically change your view. Resizing preserves the chosen center and distance scale. The map stays north up, and a distance scale in meters is shown at the bottom left. Zoom and pan do not edit the track or change Steve's coordinates.
