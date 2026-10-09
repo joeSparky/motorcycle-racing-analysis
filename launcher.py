@@ -335,6 +335,9 @@ class Launcher:
             messagebox.showerror('Cannot start analysis', str(e),parent=self.root)
 
     def poll(self):
+        from points_selection import selected_points
+        path=selected_points(self.track.get()) if self.track.get() else None
+        if path:self.points.set(path)
         code = self.child.poll()
         if code is None:
             self.root.after(300,self.poll)
