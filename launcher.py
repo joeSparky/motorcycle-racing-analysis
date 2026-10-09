@@ -136,14 +136,13 @@ class Launcher:
             name=simpledialog.askstring('Track name','Name for this track:',initialvalue=Path(self.track_directory.get() or source).stem,parent=self.root)
             if not name or not name.strip():return
             data=project(source,member,name.strip())
-            if not messagebox.askokcancel('Confirm track reference',f"Import {len(data['nodes'])} points for {name.strip()}?\n\nPosition 0 uses the export's first point. Verify start/finish and direction on the track map before comparing laps.",parent=self.root):return
-            output=filedialog.asksaveasfilename(parent=self.root,title='Save track project',initialdir=self.initial_directory(),initialfile=''.join(c if c.isalnum() or c in '-_' else '-' for c in name.strip())+'-track-project.json',defaultextension='.json',filetypes=[('Track project JSON','*.json')])
+            output=filedialog.asksaveasfilename(parent=self.root,title='Save track project',initialdir=self.initial_directory(),initialfile=''.join(c if c not in '<>:"/\\|?*' and ord(c)>=32 else '-' for c in name.strip()).rstrip('. ')+'.json',defaultextension='.json',filetypes=[('Track project JSON','*.json')])
             if not output:return
             if Path(output).resolve()==Path(source).resolve():raise ValueError('Output must differ from the track export.')
             from expression_editor import save_json
             save_json(Path(output),data)
             self.track.set(output);self.save()
-            self.status.set('Track project imported. Open the track map to verify start/finish and direction; use Edit Segments to define segments.')
+            self.status.set('Track project imported. Use Edit Segments to define segments.')
         except (OSError,ValueError,KeyError,RuntimeError) as exc:
             messagebox.showerror('Cannot import track',str(exc),parent=self.root)
 
