@@ -21,7 +21,7 @@ def available_expressions(fields, saved):
     if 'GPS LatAcc' in fields:
         result['Estimated lean angle'] = dict(
             expression='degrees(atan([GPS LatAcc]))', label='Estimated lean angle',
-            units='deg', decimals=1, bin_width=5)
+            units='deg', decimals=1)
     result.update(saved)
     return result
 
@@ -40,7 +40,6 @@ class ExpressionEditor(ttk.LabelFrame):
         self.expression = tk.StringVar(value='RPM')
         self.units = tk.StringVar()
         self.decimals = tk.StringVar(value='2')
-        self.bin_width = tk.StringVar(value='0')
         self.columnconfigure(1, weight=1)
         ttk.Label(self, text='Saved name').grid(row=0,column=0,sticky='w')
         self.names = ttk.Combobox(self,textvariable=self.name,values=list(self.saved))
@@ -54,10 +53,10 @@ class ExpressionEditor(ttk.LabelFrame):
         channels.bind('<<ComboboxSelected>>',lambda e:self.expression.set(self.expression.get()+'['+channels.get()+']'))
         ttk.Label(self,text='Append channel').grid(row=2,column=0,sticky='w')
         settings = ttk.Frame(self); settings.grid(row=3,column=0,columnspan=3,sticky='w',pady=5)
-        for label,var in [('Units',self.units),('Decimals',self.decimals),('Histogram bin width',self.bin_width)]:
+        for label,var in [('Units',self.units),('Decimals',self.decimals)]:
             ttk.Label(settings,text=label).pack(side='left',padx=4)
             ttk.Entry(settings,textvariable=var,width=9).pack(side='left')
-        ttk.Label(self,text='Use [GPS Speed] for channel names with spaces. Operators: + − * / % ** and comparisons; atan(), degrees(), abs(). Histogram width 0 = automatic bins.').grid(row=4,column=0,columnspan=3,sticky='w')
+        ttk.Label(self,text='Use [GPS Speed] for channel names with spaces. Operators: + − * / % ** and comparisons; atan(), degrees(), abs().').grid(row=4,column=0,columnspan=3,sticky='w')
         if self.saved:
             self.name.set(next(iter(self.saved))); self.load(self.saved[self.name.get()])
         elif 'RPM' not in evaluator.fields:
@@ -67,14 +66,13 @@ class ExpressionEditor(ttk.LabelFrame):
         self.expression.set(item.get('expression',item.get('channel','RPM')))
         self.units.set(item.get('units',''))
         self.decimals.set(str(item.get('decimals',2)))
-        self.bin_width.set(str(item.get('bin_width',0)))
 
     def get(self):
         self.evaluator.compile(self.expression.get())
-        decimals = int(self.decimals.get()); width = float(self.bin_width.get())
-        if not 0 <= decimals <= 8 or not math.isfinite(width) or width < 0:
-            raise ValueError('Decimals must be 0–8; bin width must be finite and nonnegative.')
-        return dict(expression=self.expression.get(),label=self.name.get().strip(),units=self.units.get(),decimals=decimals,bin_width=width)
+        decimals = int(self.decimals.get())
+        if not 0 <= decimals <= 8:
+            raise ValueError('Decimals must be 0–8.')
+        return dict(expression=self.expression.get(),label=self.name.get().strip(),units=self.units.get(),decimals=decimals)
 
     def save(self):
         try:
