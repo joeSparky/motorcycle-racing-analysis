@@ -42,3 +42,19 @@ class DataDirectoryTests(unittest.TestCase):
             self.app.choose(self.app.race)
         self.assertEqual(picker.call_args.kwargs['initialdir'],str(self.base))
         self.assertEqual(self.app.race.get(),'new.csv')
+
+    def test_new_track_with_no_root_cancelled_does_not_create_track(self):
+        self.app.data_root.set('')
+        self.app.choose_data_root=Mock()
+        with patch.object(launcher.simpledialog,'askstring') as ask:
+            self.app.create_track_directory()
+        self.app.choose_data_root.assert_called_once()
+        ask.assert_not_called()
+
+    def test_new_track_prompts_for_missing_root(self):
+        self.app.data_root.set('')
+        self.app.choose_data_root=Mock(side_effect=lambda:self.app.data_root.set(str(self.base/'racingData')))
+        with patch.object(launcher.simpledialog,'askstring',return_value='Barber'), patch.object(launcher,'BASE',self.base):
+            self.app.create_track_directory()
+        self.app.choose_data_root.assert_called_once()
+        self.assertTrue((self.base/'racingData'/'Barber').is_dir())

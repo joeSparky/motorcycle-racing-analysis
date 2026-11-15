@@ -87,7 +87,7 @@ On the dashboard map, pause the video, enable Edit points and select a point. At
 
 ## Track data folders
 
-The launcher remembers a racingData folder and a selected Track data folder. The default racingData location is your home folder; Browse lets you choose another location, such as C:\projects\racingData. New track folder creates a named subfolder (and the racingData folder if necessary). Track data folder Browse selects an existing folder.
+The launcher remembers a racingData folder and a selected Track data folder. On a fresh installation, racingData folder is blank; Browse lets you choose a location, such as C:\projects\racingData. Existing saved selections are restored. New track folder creates a named subfolder (and the racingData folder if necessary). Track data folder Browse selects an existing folder.
 
 Selecting a track folder clears the four file selections so you can choose that track's Race CSV, Helmet video, Track project and Interesting points. It does not delete or move files. All four Browse buttons and Select Video Pieces start in the selected track folder. Keep the CSV, video, track project and points there; the application remembers both folders on restart. Use Import .ztracks to create a track project from a Race Studio export.
 

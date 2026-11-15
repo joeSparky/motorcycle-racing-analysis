@@ -28,7 +28,7 @@ class Launcher:
         self.video = tk.StringVar()
         self.track = tk.StringVar()
         self.points = tk.StringVar()
-        self.data_root = tk.StringVar(value=str(Path.home()/'racingData'))
+        self.data_root = tk.StringVar(value='')
         self.track_directory = tk.StringVar()
         self.status = tk.StringVar(value='Choose a race CSV and its helmet video.')
         try:
@@ -153,6 +153,9 @@ class Launcher:
 
     def create_track_directory(self):
         if self.running():return
+        if not self.data_root.get().strip():
+            self.choose_data_root()
+            if not self.data_root.get().strip():return
         name=simpledialog.askstring('New track folder','Track folder name (for example Barber):',parent=self.root)
         if name is None:return
         name=name.strip()
