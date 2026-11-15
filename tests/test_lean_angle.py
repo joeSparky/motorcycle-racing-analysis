@@ -29,7 +29,6 @@ class LeanAngleTests(unittest.TestCase):
     def test_preset_respects_saved_expressions_and_missing_channel(self):
         preset = available_expressions(['GPS LatAcc'], {})['Estimated lean angle']
         self.assertEqual(preset['units'], 'deg')
-        self.assertEqual(preset['bin_width'], 5)
         saved = {'Estimated lean angle': {'expression': '42'}}
         self.assertEqual(available_expressions(['GPS LatAcc'], saved), saved)
         self.assertEqual(available_expressions(['RPM'], {}), {})
@@ -39,11 +38,10 @@ class LeanAngleTests(unittest.TestCase):
             path = Path(directory)/'race.csv'
             path.write_text(CSV)
             session = Session(path)
-            result = session.calculate('degrees(atan((Throttle-50)/50))', session.select('Entire recording'), 5)
+            result = session.calculate('degrees(atan((Throttle-50)/50))', session.select('Entire recording'))
             self.assertEqual(result['minimum'], -45)
             self.assertEqual(result['maximum'], 45)
             self.assertEqual(result['median'], 0)
-            self.assertEqual(sum(result['histogram_counts']), 5)
 
 
 if __name__ == '__main__':

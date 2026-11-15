@@ -4,7 +4,7 @@ Open **Statistics** from Race-Analysis.cmd. Select an original AIM CSV in the la
 
 On the statistics screen, enter a formula, choose the interval and click **Evaluate**. For example, `RPM / Speed` or `RPM / [GPS Speed]`. These use the CSV's original units; the Units box is a label, not a conversion. Comparisons such as `Throttle > 90` return 1 or 0, so their mean is the fraction of valid selected samples meeting the condition. Arithmetic, parentheses and comparisons are supported; The functions `atan()`, `degrees()` and `abs()` are supported, each with one argument; arbitrary Python code is not.
 
-Choose a saved name and click **Save expression** to reuse a formula, units, decimal precision and histogram-bin width. Saved expressions are local to this installation in expressions.json.
+Choose a saved name and click **Save expression** to reuse a formula, units, decimal precision. Saved expressions are local to this installation in expressions.json.
 
 ## Intervals
 
@@ -19,7 +19,7 @@ The plot uses recording seconds, with toolbar zoom, pan and image saving. Exclud
 
 ## Results
 
-Mean and median use valid selected samples equally. The histogram displays counts for the same valid expression values and selected interval as the time graph. A positive Histogram bin width makes half-open bins aligned to zero (for example, width 100 gives [4000, 4100)). Zero chooses between 1 and 100 equal-width bins automatically from the valid sample count. Constant and single-sample results are supported. More than 1000 fixed-width bins is rejected; increase the width or choose automatic bins. Display rounding does not change bin membership. The histogram counts samples, rather than elapsed time.
+Mean and median use valid selected samples equally. Choose **Graphs shown** to display one, two, or three stacked time graphs. Use **Edit graph / show statistics** to configure each graph independently. Click **Evaluate** to update all visible graphs using the same interval. Their time axes share zoom and pan; video cursors appear on every graph. Statistics and Go to Min/Max use the selected graph.
 
 Minimum and maximum include their recording times in seconds (the first occurrence within the selected interval when tied). Valid/omitted/selected counts and a time-weighted mean are also shown. Time weighting integrates trapezoids between adjacent valid selected samples only, excluding gaps over one second. Its included duration is displayed. This duration may be less than the requested interval because boundary interpolation is not performed. A single valid sample has no time-weighted mean. Missing channels and invalid formulas produce an error; per-sample division by zero, nonnumeric values, overflow and nonfinite results are omitted.
 
@@ -49,7 +49,7 @@ Saved segment starts are marked with blue squares and labeled with their TrackPo
 
 ## Estimated lean angle
 
-When the CSV contains GPS LatAcc, the saved-expression dropdown includes **Estimated lean angle**: `degrees(atan([GPS LatAcc]))`. Select it in Statistics and click Evaluate, or choose it for a dashboard gauge and click Apply and save gauges. Suggested bar bounds are -60 to 60 degrees. The built-in preset uses one decimal place and 5-degree histogram bins. Existing expressions with that name take precedence.
+When the CSV contains GPS LatAcc, the saved-expression dropdown includes **Estimated lean angle**: `degrees(atan([GPS LatAcc]))`. Select it in Statistics and click Evaluate, or choose it for a dashboard gauge and click Apply and save gauges. Suggested bar bounds are -60 to 60 degrees. The built-in preset uses one decimal place. Existing expressions with that name take precedence.
 
 GPS LatAcc must be in g. The Units field labels the result; it does not convert the input. The estimate assumes steady balanced cornering on a level surface and represents the combined bike/rider lean. Body position, banking, bumps, transitions and GPS noise can make actual motorcycle lean different. It is not a direct measurement or a tire grip limit. This version uses the original samples without smoothing.
 

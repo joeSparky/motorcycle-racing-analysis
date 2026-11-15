@@ -4,7 +4,6 @@ import io
 import math
 from pathlib import Path
 import statistics
-import numpy as np
 from aimcsv import extract
 from expressions import ExpressionEvaluator
 
@@ -79,27 +78,14 @@ class Session:
             raise ValueError('This recording has no RPM channel.')
         return mask
 
-    def calculate(self, expression, mask, bin_width=0):
+    def calculate(self, expression, mask):
         if len(mask) != len(self.rows):
             raise ValueError('Selection length differs from recording.')
-        if not math.isfinite(bin_width) or bin_width < 0:
-            raise ValueError('Histogram bin width must be zero (automatic) or a positive finite number.')
         self.evaluator.compile(expression)
         values = [self.evaluator.evaluate(expression,row) if chosen else None for row,chosen in zip(self.rows,mask)]
         valid = [v for v in values if v is not None]
         if not valid:
             raise ValueError('No valid expression results in the selected interval.')
-        if bin_width:
-            first = math.floor(min(valid)/bin_width)
-            last = math.floor(max(valid)/bin_width) + 1
-            if last-first > 1000:
-                raise ValueError('Histogram would exceed 1000 bins. Increase the bin width or use 0 for automatic bins.')
-            edges = np.arange(first,last+1,dtype=float)*bin_width
-        else:
-            edges = np.histogram_bin_edges(valid,bins=min(100,max(1,math.ceil(math.sqrt(len(valid))))))
-        if not np.isfinite(edges).all() or not (np.diff(edges)>0).all():
-            raise ValueError('Histogram bin width is too small for these values.')
-        counts, edges = np.histogram(valid,bins=edges)
         # Trapezoids only between adjacent valid selected samples. Never span gaps.
         area = duration = 0.0
         for i in range(1,len(values)):
@@ -110,6 +96,6 @@ class Session:
         minimum, maximum = min(valid), max(valid)
         return dict(mean=statistics.mean(valid), median=statistics.median(valid), minimum=minimum, maximum=maximum,
                     minimum_time=self.times[values.index(minimum)], maximum_time=self.times[values.index(maximum)],
-                    histogram_counts=counts.tolist(), histogram_edges=edges.tolist(), bin_width=bin_width, valid=len(valid), omitted=sum(mask)-len(valid),
+                    valid=len(valid), omitted=sum(mask)-len(valid),
                     selected=sum(mask), weighted_mean=area/duration if duration else None, weighted_duration=duration,
                     values=values)
