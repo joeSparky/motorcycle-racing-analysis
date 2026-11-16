@@ -11,6 +11,30 @@ from PIL import ImageTk
 from interesting_points import InterestingPoints, identity, POINT_COLORS
 
 
+def enable_picture_drag(window, picture_widget):
+    """Move the reference window using pointer deltas in screen coordinates."""
+    origin = None
+
+    def start(event):
+        nonlocal origin
+        origin = (event.x_root, event.y_root, window.winfo_x(), window.winfo_y())
+
+    def move(event):
+        if origin is None: return
+        pointer_x, pointer_y, window_x, window_y = origin
+        x = window_x + event.x_root - pointer_x
+        y = window_y + event.y_root - pointer_y
+        window.geometry(f'{x:+d}{y:+d}')
+
+    def stop(event):
+        nonlocal origin
+        origin = None
+
+    picture_widget.bind('<ButtonPress-1>', start)
+    picture_widget.bind('<B1-Motion>', move)
+    picture_widget.bind('<ButtonRelease-1>', stop)
+
+
 def recorded_position(row, geometry):
     try:
         lat,lon=float(row['GPS Latitude']),float(row['GPS Longitude'])
@@ -213,7 +237,9 @@ class TrackView:
         window=tk.Toplevel(self.window);window.title(self.selected['label']+' — reference picture')
         picture.thumbnail((1000,700))
         photo=ImageTk.PhotoImage(picture,master=window)
-        label=ttk.Label(window,image=photo);label.image=photo;label.pack(padx=8,pady=8)
+        label=ttk.Label(window,image=photo,cursor='fleur');label.image=photo;label.pack(padx=8,pady=8)
+        enable_picture_drag(window,label)
+        ttk.Label(window,text='Drag the picture or title bar to move this window.').pack(padx=8)
         ttk.Label(window,text=self.selected.get('notes',''),wraplength=900).pack(padx=8,pady=8)
 
     def remove_image(self):
